@@ -1,0 +1,247 @@
+.financial-statements {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 48px 32px 64px;
+  box-sizing: border-box;
+  color: #182230;
+  text-align: left;
+}
+
+.financial-statements__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.financial-statements__eyebrow {
+  margin-bottom: 8px;
+  color: #51637d;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.financial-statements h1 {
+  margin: 0;
+  color: #101828;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  letter-spacing: -0.045em;
+}
+
+.financial-statements__subtitle {
+  margin-top: 8px;
+  color: #667085;
+}
+
+.financial-statements__tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e4e7ec;
+  overflow-x: auto;
+}
+
+.financial-statements__tab {
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #667085;
+  background: transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.financial-statements__tab:hover {
+  color: #344054;
+  background: #f2f4f7;
+}
+
+.financial-statements__tab:focus-visible {
+  outline: 3px solid #c7d7fe;
+  outline-offset: 2px;
+}
+
+.financial-statements__tab.is-active {
+  border-color: #c7d7fe;
+  color: #1849a9;
+  background: #eff4ff;
+}
+
+.financial-statements__state {
+  margin: 32px 0;
+  padding: 18px;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  color: #475467;
+  background: #f9fafb;
+}
+
+.financial-statements__state--error {
+  border-color: #fecdca;
+  color: #b42318;
+  background: #fef3f2;
+}
+
+.financial-statements__table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 4%);
+}
+
+.financial-statements__table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.financial-statements__table caption {
+  padding: 14px 20px;
+  color: #667085;
+  background: #fcfcfd;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.financial-statements__table th,
+.financial-statements__table td {
+  padding: 15px 20px;
+  border-top: 1px solid #eaecf0;
+  white-space: nowrap;
+}
+
+.financial-statements__table thead th {
+  border-top: 0;
+  color: #475467;
+  background: #f9fafb;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.financial-statements__table thead th:first-child,
+.financial-statements__table tbody th {
+  text-align: left;
+}
+
+.financial-statements__table tbody th {
+  color: #344054;
+  font-weight: 600;
+}
+
+.financial-statements__table td {
+  color: #101828;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.financial-statements__table tbody tr:hover {
+  background: #fcfcfd;
+}
+
+.financial-analysis {
+  margin-top: 24px;
+}
+
+.financial-analysis__intro {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.financial-analysis__subtitle {
+  margin-top: 8px;
+  color: #475467;
+}
+
+.financial-analysis__grid {
+  display: grid;
+  gap: 24px;
+}
+
+.financial-analysis__group {
+  background: #ffffff;
+  border: 1px solid #e4e7ec;
+  border-radius: 18px;
+  padding: 20px;
+}
+
+.financial-analysis__group-title {
+  margin: 0 0 18px;
+  color: #101828;
+  font-size: 1.05rem;
+}
+
+.financial-analysis__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.financial-analysis__card {
+  padding: 18px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.financial-analysis__card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.financial-analysis__card-header h3 {
+  margin: 0;
+  font-size: 0.98rem;
+  color: #102a43;
+}
+
+.financial-analysis__unit {
+  color: #475467;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.financial-analysis__value {
+  margin: 0 0 10px;
+  color: #0f172a;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.financial-analysis__description {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 640px) {
+  .financial-statements {
+    padding: 32px 16px 48px;
+  }
+
+  .financial-statements__header {
+    margin-bottom: 24px;
+  }
+
+  .financial-statements__table th,
+  .financial-statements__table td {
+    padding: 13px 16px;
+  }
+}
