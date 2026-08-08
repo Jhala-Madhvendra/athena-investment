@@ -2,16 +2,13 @@ import { useEffect, useState } from 'react'
 import { Outlet, useParams } from 'react-router-dom'
 import Tabs from './ui/Tabs'
 import Skeleton from './ui/Skeleton'
-import EmptyState from './ui/EmptyState'
-import ErrorState from './ui/ErrorState'
 
 const TAB_ITEMS = [
-  { key: 'income-statement', label: 'Income Statement', to: 'income-statement' },
-  { key: 'balance-sheet', label: 'Balance Sheet', to: 'balance-sheet' },
-  { key: 'cash-flow', label: 'Cash Flow', to: 'cash-flow' },
+  { key: 'overview', label: 'Overview', to: 'overview' },
+  { key: 'financial-statements', label: 'Financial Statements', to: 'financial-statements' },
   { key: 'financial-analysis', label: 'Financial Analysis', to: 'financial-analysis' },
-  { key: 'business-analysis', label: 'Business Analysis', to: 'business-analysis' },
   { key: 'market-intelligence', label: 'Market Intelligence', to: 'market-intelligence' },
+  { key: 'valuation', label: 'Valuation (Coming Soon)', to: 'valuation' },
 ]
 
 function FinancialStatements() {
@@ -19,7 +16,12 @@ function FinancialStatements() {
   const [financialStatements, setFinancialStatements] = useState([])
   const [currency, setCurrency] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
+  // Fetch failure here (e.g. a company with no statements available at all,
+  // like an ETF) is passed down rather than blocking the page - only
+  // StatementTable actually requires this data; Overview, Market
+  // Intelligence, Financial Analysis, and Business Analysis fetch their own
+  // data independently and stay reachable regardless of this outcome.
+  const [financialStatementsError, setFinancialStatementsError] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -27,7 +29,7 @@ function FinancialStatements() {
 
     const loadFinancialStatements = async () => {
       setIsLoading(true)
-      setError('')
+      setFinancialStatementsError('')
 
       try {
         const response = await fetch(
@@ -44,7 +46,8 @@ function FinancialStatements() {
         setCurrency(data.currency || null)
       } catch (requestError) {
         if (requestError.name !== 'AbortError') {
-          setError(requestError.message)
+          setFinancialStatements([])
+          setFinancialStatementsError(requestError.message)
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -72,19 +75,8 @@ function FinancialStatements() {
 
       {isLoading && <Skeleton variant="card" count={1} />}
 
-      {!isLoading && error && (
-        <ErrorState title="Couldn't load financial statements" message={error} />
-      )}
-
-      {!isLoading && !error && financialStatements.length === 0 && (
-        <EmptyState
-          title="No data yet"
-          message={`No financial statements have been imported for ${ticker?.toUpperCase()} yet.`}
-        />
-      )}
-
-      {!isLoading && !error && financialStatements.length > 0 && (
-        <Outlet context={{ financialStatements, ticker, currency }} />
+      {!isLoading && (
+        <Outlet context={{ financialStatements, ticker, currency, financialStatementsError }} />
       )}
     </section>
   )

@@ -1,10 +1,18 @@
 import { useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import FinancialStatements from './components/FinancialStatements'
-import StatementTable from './components/StatementTable'
+import FinancialStatementsGroup from './components/FinancialStatementsGroup'
 import FinancialAnalysis from './components/FinancialAnalysis'
 import BusinessAnalysis from './components/BusinessAnalysis'
 import MarketIntelligence from './components/MarketIntelligence'
+import Overview from './components/Overview'
+import Valuation from './components/Valuation'
+
+/** Backward-compat redirect for the old flat statement URLs (pre-Sprint-5). */
+function RedirectToStatement({ subtab }) {
+  const { ticker } = useParams()
+  return <Navigate to={`/financials/${ticker}/financial-statements/${subtab}`} replace />
+}
 
 function TickerSearch() {
   const [query, setQuery] = useState('AAPL')
@@ -43,7 +51,7 @@ function TickerSearch() {
         throw new Error(data.message || 'Unable to resolve company.')
       }
 
-      navigate(`/financials/${encodeURIComponent(data.ticker)}/income-statement`)
+      navigate(`/financials/${encodeURIComponent(data.ticker)}/overview`)
     } catch (resolveError) {
       setError(resolveError.message)
     } finally {
@@ -113,18 +121,22 @@ function App() {
         <Header />
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <Routes>
-            <Route path="/" element={<Navigate to="/financials/AAPL/income-statement" replace />} />
+            <Route path="/" element={<Navigate to="/financials/AAPL/overview" replace />} />
             <Route path="/financials/:ticker" element={<FinancialStatements />}>
-              <Route index element={<Navigate to="income-statement" replace />} />
-              <Route path="income-statement" element={<StatementTable statementKey="incomeStatement" />} />
-              <Route path="balance-sheet" element={<StatementTable statementKey="balanceSheet" />} />
-              <Route path="cash-flow" element={<StatementTable statementKey="cashFlow" />} />
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<Overview />} />
+              <Route path="financial-statements" element={<Navigate to="income-statement" replace />} />
+              <Route path="financial-statements/:subtab" element={<FinancialStatementsGroup />} />
+              <Route path="income-statement" element={<RedirectToStatement subtab="income-statement" />} />
+              <Route path="balance-sheet" element={<RedirectToStatement subtab="balance-sheet" />} />
+              <Route path="cash-flow" element={<RedirectToStatement subtab="cash-flow" />} />
               <Route path="financial-analysis" element={<FinancialAnalysis />} />
               <Route path="business-analysis" element={<Navigate to="overview" replace />} />
               <Route path="business-analysis/:subtab" element={<BusinessAnalysis />} />
               <Route path="market-intelligence" element={<MarketIntelligence />} />
+              <Route path="valuation" element={<Valuation />} />
             </Route>
-            <Route path="*" element={<Navigate to="/financials/AAPL/income-statement" replace />} />
+            <Route path="*" element={<Navigate to="/financials/AAPL/overview" replace />} />
           </Routes>
         </main>
       </div>

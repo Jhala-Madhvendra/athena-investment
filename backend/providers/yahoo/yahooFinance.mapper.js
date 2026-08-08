@@ -1,6 +1,9 @@
 const getValue = (value) => {
-    if (value && typeof value === "object" && "raw" in value) {
-        return value.raw;
+    if (value && typeof value === "object") {
+        // Yahoo sometimes returns a malformed/empty object (e.g. {} for an
+        // ETF's marketCap) instead of the usual {raw, fmt} shape or a plain
+        // null - only a genuine {raw} value is usable, anything else isn't.
+        return "raw" in value ? value.raw : null;
     }
 
     return value ?? null;

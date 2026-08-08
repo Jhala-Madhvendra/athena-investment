@@ -2,15 +2,32 @@ import { useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { statementTabs, formatValue } from '../lib/statementTabs'
 import Card from './ui/Card'
+import EmptyState from './ui/EmptyState'
+import ErrorState from './ui/ErrorState'
 
 function StatementTable({ statementKey }) {
-  const { financialStatements, currency } = useOutletContext()
+  const { financialStatements, currency, ticker, financialStatementsError } = useOutletContext()
   const tab = statementTabs[statementKey]
 
   const years = useMemo(
     () => financialStatements.map((statement) => statement.year),
     [financialStatements],
   )
+
+  if (financialStatementsError) {
+    return (
+      <ErrorState title="Couldn't load financial statements" message={financialStatementsError} />
+    )
+  }
+
+  if (!financialStatements || financialStatements.length === 0) {
+    return (
+      <EmptyState
+        title="No data yet"
+        message={`No financial statements have been imported for ${ticker?.toUpperCase()} yet.`}
+      />
+    )
+  }
 
   return (
     <Card
