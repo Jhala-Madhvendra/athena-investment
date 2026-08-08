@@ -7,6 +7,7 @@ const connectDB = require("./config/db");
 const companyRoutes = require("./routes/company.routes");
 const financialsRoutes = require("./financials/financials.routes");
 const ratioRoutes = require("./ratio/ratio.routes");
+const analysisRoutes = require("./analysis/analysis.routes");
 
 connectDB();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use("/api/company", companyRoutes);
 app.use("/api/financials", financialsRoutes);
 app.use("/api/ratios", ratioRoutes);
+app.use("/api/analysis", analysisRoutes);
 
 app.get("/", (req, res) => {
     res.send("Backend Running...");

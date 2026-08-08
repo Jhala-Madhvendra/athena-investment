@@ -9,7 +9,7 @@ const isTickerLike = (value) =>
     tickerPattern.test(value.trim());
 
 const isValidYear = (year) => {
-    const parsedYear = Number(year);
+    const parsedYear = Number(year); 
     const currentYear = new Date().getUTCFullYear();
 
     return Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= currentYear + 1;

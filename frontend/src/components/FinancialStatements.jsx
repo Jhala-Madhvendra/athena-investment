@@ -1,73 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
-import FinancialAnalysis from './FinancialAnalysis'
+import { useEffect, useState } from 'react'
+import { Outlet, useParams } from 'react-router-dom'
+import Tabs from './ui/Tabs'
+import Skeleton from './ui/Skeleton'
+import EmptyState from './ui/EmptyState'
+import ErrorState from './ui/ErrorState'
 
-const statementTabs = {
-  incomeStatement: {
-    label: 'Income Statement',
-    rows: [
-      ['totalRevenue', 'Total Revenue'],
-      ['costOfRevenue', 'Cost of Revenue'],
-      ['grossProfit', 'Gross Profit'],
-      ['totalOperatingExpenses', 'Operating Expenses'],
-      ['operatingIncome', 'Operating Income'],
-      ['pretaxIncome', 'Pre-tax Income'],
-      ['taxProvision', 'Tax Provision'],
-      ['netIncome', 'Net Income'],
-      ['basicEPS', 'Basic EPS'],
-      ['dilutedEPS', 'Diluted EPS'],
-    ],
-  },
-  balanceSheet: {
-    label: 'Balance Sheet',
-    rows: [
-      ['cashAndCashEquivalents', 'Cash & Cash Equivalents'],
-      ['totalAssets', 'Total Assets'],
-      ['totalLiabilities', 'Total Liabilities'],
-      ['totalDebt', 'Total Debt'],
-      ['totalStockholderEquity', 'Stockholders’ Equity'],
-    ],
-  },
-  cashFlow: {
-    label: 'Cash Flow',
-    rows: [
-      ['operatingCashFlow', 'Operating Cash Flow'],
-      ['capitalExpenditure', 'Capital Expenditure'],
-      ['investingCashFlow', 'Investing Cash Flow'],
-      ['financingCashFlow', 'Financing Cash Flow'],
-      ['freeCashFlow', 'Free Cash Flow'],
-    ],
-  },
-  analysis: {
-    label: 'Financial Analysis',
-    isAnalysis: true,
-  },
-}
+const TAB_ITEMS = [
+  { key: 'income-statement', label: 'Income Statement', to: 'income-statement' },
+  { key: 'balance-sheet', label: 'Balance Sheet', to: 'balance-sheet' },
+  { key: 'cash-flow', label: 'Cash Flow', to: 'cash-flow' },
+  { key: 'financial-analysis', label: 'Financial Analysis', to: 'financial-analysis' },
+  { key: 'business-analysis', label: 'Business Analysis', to: 'business-analysis' },
+]
 
-const formatValue = (value, field) => {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-
-  if (field === 'basicEPS' || field === 'dilutedEPS') {
-    return Number(value).toFixed(2)
-  }
-
-  const absoluteValue = Math.abs(value)
-  const sign = value < 0 ? '−' : ''
-
-  if (absoluteValue >= 1_000_000_000) {
-    return `${sign}${(absoluteValue / 1_000_000_000).toFixed(1)}B`
-  }
-
-  if (absoluteValue >= 1_000_000) {
-    return `${sign}${(absoluteValue / 1_000_000).toFixed(1)}M`
-  }
-
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value)
-}
-
-function FinancialStatements({ ticker }) {
-  const [activeStatement, setActiveStatement] = useState('incomeStatement')
+function FinancialStatements() {
+  const { ticker } = useParams()
   const [financialStatements, setFinancialStatements] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -108,85 +55,33 @@ function FinancialStatements({ ticker }) {
     return () => controller.abort()
   }, [ticker])
 
-  const activeTab = statementTabs[activeStatement]
-  const years = useMemo(
-    () => financialStatements.map((statement) => statement.year),
-    [financialStatements],
-  )
-
   return (
-    <section className="financial-statements" aria-labelledby="financial-statements-title">
-      <div className="financial-statements__header">
-        <div>
-          <p className="financial-statements__eyebrow">Company analysis</p>
-          <h1 id="financial-statements-title">Financial Statements</h1>
-          <p className="financial-statements__subtitle">
-            {ticker.toUpperCase()} annual reported figures
-          </p>
-        </div>
+    <section aria-labelledby="financial-statements-title" className="space-y-6">
+      <div>
+        <p className="text-xs font-semibold tracking-wide text-brand-600 uppercase">Company analysis</p>
+        <h1 id="financial-statements-title" className="mt-1 text-3xl font-bold text-slate-900">
+          {ticker?.toUpperCase()}
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">Annual reported figures and automated business analysis</p>
       </div>
 
-      <div className="financial-statements__tabs" role="tablist" aria-label="Financial statements">
-        {Object.entries(statementTabs).map(([statementKey, statement]) => (
-          <button
-            key={statementKey}
-            type="button"
-            className={`financial-statements__tab ${
-              activeStatement === statementKey ? 'is-active' : ''
-            }`}
-            role="tab"
-            aria-selected={activeStatement === statementKey}
-            onClick={() => setActiveStatement(statementKey)}
-          >
-            {statement.label}
-          </button>
-        ))}
-      </div>
+      <Tabs items={TAB_ITEMS} />
 
-      {isLoading && <p className="financial-statements__state">Loading financial statements…</p>}
+      {isLoading && <Skeleton variant="card" count={1} />}
 
       {!isLoading && error && (
-        <p className="financial-statements__state financial-statements__state--error">{error}</p>
+        <ErrorState title="Couldn't load financial statements" message={error} />
       )}
 
       {!isLoading && !error && financialStatements.length === 0 && (
-        <p className="financial-statements__state">
-          No financial statements have been imported for {ticker.toUpperCase()} yet.
-        </p>
+        <EmptyState
+          title="No data yet"
+          message={`No financial statements have been imported for ${ticker?.toUpperCase()} yet.`}
+        />
       )}
 
       {!isLoading && !error && financialStatements.length > 0 && (
-        activeStatement === 'analysis' ? (
-          <FinancialAnalysis ticker={ticker} />
-        ) : (
-          <div className="financial-statements__table-wrap">
-            <table className="financial-statements__table">
-              <caption>{activeTab.label} — values in reported units</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Metric</th>
-                  {years.map((year) => (
-                    <th key={year} scope="col">
-                      FY {year}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {activeTab.rows.map(([field, label]) => (
-                  <tr key={field}>
-                    <th scope="row">{label}</th>
-                    {financialStatements.map((statement) => (
-                      <td key={`${statement.year}-${field}`}>
-                        {formatValue(statement[activeStatement]?.[field], field)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
+        <Outlet context={{ financialStatements, ticker }} />
       )}
     </section>
   )

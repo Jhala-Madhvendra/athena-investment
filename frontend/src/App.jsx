@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import FinancialStatements from './components/FinancialStatements'
-import './components/FinancialStatements.css'
-import './App.css'
+import StatementTable from './components/StatementTable'
+import FinancialAnalysis from './components/FinancialAnalysis'
+import BusinessAnalysis from './components/BusinessAnalysis'
 
 function TickerSearch() {
   const [query, setQuery] = useState('AAPL')
@@ -41,7 +42,7 @@ function TickerSearch() {
         throw new Error(data.message || 'Unable to resolve company.')
       }
 
-      navigate(`/financials/${encodeURIComponent(data.ticker)}`)
+      navigate(`/financials/${encodeURIComponent(data.ticker)}/income-statement`)
     } catch (resolveError) {
       setError(resolveError.message)
     } finally {
@@ -50,43 +51,68 @@ function TickerSearch() {
   }
 
   return (
-    <form className="ticker-search" onSubmit={handleSubmit}>
-      <label htmlFor="ticker-input">Enter ticker or company name</label>
-      <div className="ticker-search__controls">
-        <input
-          id="ticker-input"
-          type="text"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="AAPL, Apple Inc, Microsoft"
-          aria-label="Search ticker or company name"
-          disabled={isResolving}
-        />
-        <button type="submit" disabled={isResolving}>
-          {isResolving ? 'Resolving...' : 'Load'}
-        </button>
-      </div>
-      {error && <p className="ticker-search__error">{error}</p>}
+    <form className="flex flex-1 items-center gap-2" onSubmit={handleSubmit}>
+      <label htmlFor="ticker-input" className="sr-only">
+        Enter ticker or company name
+      </label>
+      <input
+        id="ticker-input"
+        type="text"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Search ticker or company (AAPL, Wipro, Eternal…)"
+        aria-label="Search ticker or company name"
+        disabled={isResolving}
+        className="w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none disabled:opacity-60"
+      />
+      <button
+        type="submit"
+        disabled={isResolving}
+        className="shrink-0 rounded-lg bg-brand-600 px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isResolving ? 'Loading…' : 'Load'}
+      </button>
+      {error && <p className="hidden text-xs font-medium text-critical sm:block">{error}</p>}
     </form>
   )
 }
 
-function FinancialStatementsWrapper() {
-  const { ticker } = useParams()
-
-  return <FinancialStatements ticker={ticker || 'AAPL'} />
+function Header() {
+  return (
+    <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <a href="/" className="flex shrink-0 items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
+            A
+          </span>
+          <span className="text-base font-semibold text-slate-900">Athena Finance</span>
+        </a>
+        <TickerSearch />
+      </div>
+    </header>
+  )
 }
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="app">
-        <TickerSearch />
-        <Routes>
-          <Route path="/" element={<Navigate to="/financials/AAPL" replace />} />
-          <Route path="/financials/:ticker" element={<FinancialStatementsWrapper />} />
-          <Route path="*" element={<Navigate to="/financials/AAPL" replace />} />
-        </Routes>
+      <div className="min-h-screen bg-slate-50">
+        <Header />
+        <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <Routes>
+            <Route path="/" element={<Navigate to="/financials/AAPL/income-statement" replace />} />
+            <Route path="/financials/:ticker" element={<FinancialStatements />}>
+              <Route index element={<Navigate to="income-statement" replace />} />
+              <Route path="income-statement" element={<StatementTable statementKey="incomeStatement" />} />
+              <Route path="balance-sheet" element={<StatementTable statementKey="balanceSheet" />} />
+              <Route path="cash-flow" element={<StatementTable statementKey="cashFlow" />} />
+              <Route path="financial-analysis" element={<FinancialAnalysis />} />
+              <Route path="business-analysis" element={<Navigate to="overview" replace />} />
+              <Route path="business-analysis/:subtab" element={<BusinessAnalysis />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/financials/AAPL/income-statement" replace />} />
+          </Routes>
+        </main>
       </div>
     </BrowserRouter>
   )

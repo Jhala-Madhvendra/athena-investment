@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import Card from './ui/Card'
+import Skeleton from './ui/Skeleton'
+import ErrorState from './ui/ErrorState'
+import EmptyState from './ui/EmptyState'
 
 const formatRatioValue = (value, unit) => {
   if (value === null || value === undefined) {
@@ -47,17 +52,20 @@ const ratioDescriptions = {
 }
 
 const buildCard = (key, metric) => (
-  <article key={key} className="financial-analysis__card">
-    <div className="financial-analysis__card-header">
-      <h3>{metric.label}</h3>
-      <span className="financial-analysis__unit">{metric.available ? metric.unit : 'N/A'}</span>
+  <article key={key} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+    <div className="flex items-start justify-between gap-2">
+      <h4 className="text-sm font-semibold text-slate-800">{metric.label}</h4>
+      <span className="shrink-0 text-xs text-slate-400">{metric.available ? metric.unit : 'N/A'}</span>
     </div>
-    <p className="financial-analysis__value">{formatRatioValue(metric.value, metric.unit)}</p>
-    <p className="financial-analysis__description">{ratioDescriptions[key] || 'Derived from the most recent financial statements.'}</p>
+    <p className="mt-2 text-xl font-bold tabular-nums text-slate-900">{formatRatioValue(metric.value, metric.unit)}</p>
+    <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+      {ratioDescriptions[key] || 'Derived from the most recent financial statements.'}
+    </p>
   </article>
 )
 
-function FinancialAnalysis({ ticker }) {
+function FinancialAnalysis() {
+  const { ticker } = useParams()
   const [ratios, setRatios] = useState(null)
   const [year, setYear] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -101,37 +109,36 @@ function FinancialAnalysis({ ticker }) {
   }, [ticker])
 
   if (isLoading) {
-    return <p className="financial-statements__state">Loading financial analysis…</p>
+    return <Skeleton variant="card" count={1} />
   }
 
   if (error) {
-    return <p className="financial-statements__state financial-statements__state--error">{error}</p>
+    return <ErrorState title="Couldn't load financial analysis" message={error} />
   }
 
   if (!ratios) {
-    return <p className="financial-statements__state">No financial analysis is available for {ticker.toUpperCase()}.</p>
+    return <EmptyState title="No analysis available" message={`No financial analysis is available for ${ticker.toUpperCase()}.`} />
   }
 
   return (
-    <section className="financial-analysis" aria-labelledby="financial-analysis-title">
-      <div className="financial-analysis__intro">
-        <div>
-          <p className="financial-statements__eyebrow">Financial analysis</p>
-          <h2 id="financial-analysis-title">Ratio analysis</h2>
-          <p className="financial-analysis__subtitle">
-            View the latest ratios for {ticker.toUpperCase()} ({year || 'latest year'}).
-          </p>
-        </div>
+    <section aria-labelledby="financial-analysis-title" className="space-y-6">
+      <div>
+        <p className="text-xs font-semibold tracking-wide text-brand-600 uppercase">Financial analysis</p>
+        <h2 id="financial-analysis-title" className="mt-1 text-xl font-bold text-slate-900">
+          Ratio analysis
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Latest ratios for {ticker.toUpperCase()} ({year || 'latest year'}).
+        </p>
       </div>
 
-      <div className="financial-analysis__grid">
+      <div className="space-y-5">
         {Object.entries(ratios).map(([groupKey, groupMetrics]) => (
-          <div key={groupKey} className="financial-analysis__group">
-            <h3 className="financial-analysis__group-title">{ratioGroupLabels[groupKey]}</h3>
-            <div className="financial-analysis__cards">
+          <Card key={groupKey} title={ratioGroupLabels[groupKey]}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {Object.entries(groupMetrics).map(([metricKey, metric]) => buildCard(metricKey, metric))}
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </section>

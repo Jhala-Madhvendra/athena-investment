@@ -17,8 +17,8 @@ const statementFieldMappings = {
         totalLiabilities: "annualTotalLiabilitiesNetMinorityInterest",
         totalDebt: "annualTotalDebt",
         totalStockholderEquity: "annualStockholdersEquity",
-        currentAssets: "annualTotalCurrentAssets",
-        currentLiabilities: "annualTotalCurrentLiabilities",
+        currentAssets: "annualCurrentAssets",
+        currentLiabilities: "annualCurrentLiabilities",
         accountsReceivable: "annualAccountsReceivable",
     },
     cashFlow: {
