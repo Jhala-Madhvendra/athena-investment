@@ -4,6 +4,7 @@ import FinancialStatements from './components/FinancialStatements'
 import StatementTable from './components/StatementTable'
 import FinancialAnalysis from './components/FinancialAnalysis'
 import BusinessAnalysis from './components/BusinessAnalysis'
+import MarketIntelligence from './components/MarketIntelligence'
 
 function TickerSearch() {
   const [query, setQuery] = useState('AAPL')
@@ -82,8 +83,20 @@ function Header() {
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
         <a href="/" className="flex shrink-0 items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-            A
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-600">
+            <svg viewBox="0 0 32 32" className="h-5 w-5" aria-hidden="true">
+              <path d="M8 9.5 L5.5 4 L11 8 Z" fill="#fff" />
+              <path d="M24 9.5 L26.5 4 L21 8 Z" fill="#fff" />
+              <path
+                d="M16 6c-4.7 0-8.5 3.8-8.5 8.5 0 3.7 2.4 6.8 5.7 8L11.8 27c-.2.6.4 1.1.9.8l3-1.8c.2 0 .2 0 .3 0l3 1.8c.6.3 1.2-.2.9-.8l-1.4-4.5c3.3-1.2 5.7-4.3 5.7-8C24.5 9.8 20.7 6 16 6z"
+                fill="#fff"
+              />
+              <circle cx="12" cy="14.3" r="3.1" fill="#256abf" />
+              <circle cx="20" cy="14.3" r="3.1" fill="#256abf" />
+              <circle cx="12" cy="14.3" r="1.3" fill="#fff" />
+              <circle cx="20" cy="14.3" r="1.3" fill="#fff" />
+              <path d="M16 16.8 L14.3 19.2 L17.7 19.2 Z" fill="#cde2fb" />
+            </svg>
           </span>
           <span className="text-base font-semibold text-slate-900">Athena Finance</span>
         </a>
@@ -109,6 +122,7 @@ function App() {
               <Route path="financial-analysis" element={<FinancialAnalysis />} />
               <Route path="business-analysis" element={<Navigate to="overview" replace />} />
               <Route path="business-analysis/:subtab" element={<BusinessAnalysis />} />
+              <Route path="market-intelligence" element={<MarketIntelligence />} />
             </Route>
             <Route path="*" element={<Navigate to="/financials/AAPL/income-statement" replace />} />
           </Routes>

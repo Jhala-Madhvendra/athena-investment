@@ -74,9 +74,12 @@ const getFinancialStatementsByTicker = async (req, res) => {
 
     try {
         const resolvedTicker = await resolveTickerParam(ticker);
-        const financialStatements = await loadFinancialStatements(resolvedTicker);
+        const [financialStatements, company] = await Promise.all([
+            loadFinancialStatements(resolvedTicker),
+            companyService.getCompanyDetails(resolvedTicker),
+        ]);
 
-        return res.status(200).json({ financialStatements });
+        return res.status(200).json({ financialStatements, currency: company?.currency ?? null });
     } catch (error) {
         return sendServiceError(res, error, 500);
     }

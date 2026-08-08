@@ -8,6 +8,7 @@ const companyRoutes = require("./routes/company.routes");
 const financialsRoutes = require("./financials/financials.routes");
 const ratioRoutes = require("./ratio/ratio.routes");
 const analysisRoutes = require("./analysis/analysis.routes");
+const marketRoutes = require("./market/market.routes");
 
 connectDB();
 
@@ -18,6 +19,7 @@ app.use("/api/company", companyRoutes);
 app.use("/api/financials", financialsRoutes);
 app.use("/api/ratios", ratioRoutes);
 app.use("/api/analysis", analysisRoutes);
+app.use("/api/market", marketRoutes);
 
 app.get("/", (req, res) => {
     res.send("Backend Running...");

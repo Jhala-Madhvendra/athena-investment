@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useOutletContext } from 'react-router-dom'
 import Card from './ui/Card'
 import Skeleton from './ui/Skeleton'
 import ErrorState from './ui/ErrorState'
 import EmptyState from './ui/EmptyState'
 
-const formatRatioValue = (value, unit) => {
+const formatRatioValue = (value, unit, currency) => {
   if (value === null || value === undefined) {
     return '—'
   }
@@ -21,7 +21,7 @@ const formatRatioValue = (value, unit) => {
   if (unit === 'currency') {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: currency || 'USD',
       maximumFractionDigits: 0,
     }).format(value)
   }
@@ -51,13 +51,15 @@ const ratioDescriptions = {
   assetTurnover: 'Measures how efficiently assets produce revenue.',
 }
 
-const buildCard = (key, metric) => (
+const buildCard = (key, metric, currency) => (
   <article key={key} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
     <div className="flex items-start justify-between gap-2">
       <h4 className="text-sm font-semibold text-slate-800">{metric.label}</h4>
       <span className="shrink-0 text-xs text-slate-400">{metric.available ? metric.unit : 'N/A'}</span>
     </div>
-    <p className="mt-2 text-xl font-bold tabular-nums text-slate-900">{formatRatioValue(metric.value, metric.unit)}</p>
+    <p className="mt-2 text-xl font-bold tabular-nums text-slate-900">
+      {formatRatioValue(metric.value, metric.unit, currency)}
+    </p>
     <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
       {ratioDescriptions[key] || 'Derived from the most recent financial statements.'}
     </p>
@@ -66,6 +68,7 @@ const buildCard = (key, metric) => (
 
 function FinancialAnalysis() {
   const { ticker } = useParams()
+  const { currency } = useOutletContext()
   const [ratios, setRatios] = useState(null)
   const [year, setYear] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -136,7 +139,7 @@ function FinancialAnalysis() {
         {Object.entries(ratios).map(([groupKey, groupMetrics]) => (
           <Card key={groupKey} title={ratioGroupLabels[groupKey]}>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {Object.entries(groupMetrics).map(([metricKey, metric]) => buildCard(metricKey, metric))}
+              {Object.entries(groupMetrics).map(([metricKey, metric]) => buildCard(metricKey, metric, currency))}
             </div>
           </Card>
         ))}

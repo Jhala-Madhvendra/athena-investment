@@ -27,7 +27,7 @@ const SUBTABS = [
  */
 const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
   const { ticker, subtab } = useParams();
-  const { financialStatements } = useOutletContext();
+  const { financialStatements, currency } = useOutletContext();
   const activeSubtab = subtab || 'overview';
 
   const [analysis, setAnalysis] = useState(null);
@@ -305,7 +305,7 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
           </Card>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <Card title="Revenue & Net Income">
+            <Card title="Revenue & Net Income" eyebrow={currency ? `In ${currency}` : undefined}>
               <TrendLineChart
                 data={trendSeries}
                 series={[

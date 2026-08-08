@@ -4,7 +4,7 @@ import { statementTabs, formatValue } from '../lib/statementTabs'
 import Card from './ui/Card'
 
 function StatementTable({ statementKey }) {
-  const { financialStatements } = useOutletContext()
+  const { financialStatements, currency } = useOutletContext()
   const tab = statementTabs[statementKey]
 
   const years = useMemo(
@@ -13,7 +13,11 @@ function StatementTable({ statementKey }) {
   )
 
   return (
-    <Card title={tab.label} eyebrow="Values in reported units" padded={false}>
+    <Card
+      title={tab.label}
+      eyebrow={currency ? `Values in reported units (${currency})` : 'Values in reported units'}
+      padded={false}
+    >
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>

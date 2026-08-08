@@ -11,11 +11,13 @@ const TAB_ITEMS = [
   { key: 'cash-flow', label: 'Cash Flow', to: 'cash-flow' },
   { key: 'financial-analysis', label: 'Financial Analysis', to: 'financial-analysis' },
   { key: 'business-analysis', label: 'Business Analysis', to: 'business-analysis' },
+  { key: 'market-intelligence', label: 'Market Intelligence', to: 'market-intelligence' },
 ]
 
 function FinancialStatements() {
   const { ticker } = useParams()
   const [financialStatements, setFinancialStatements] = useState([])
+  const [currency, setCurrency] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -39,6 +41,7 @@ function FinancialStatements() {
         }
 
         setFinancialStatements(data.financialStatements || [])
+        setCurrency(data.currency || null)
       } catch (requestError) {
         if (requestError.name !== 'AbortError') {
           setError(requestError.message)
@@ -81,7 +84,7 @@ function FinancialStatements() {
       )}
 
       {!isLoading && !error && financialStatements.length > 0 && (
-        <Outlet context={{ financialStatements, ticker }} />
+        <Outlet context={{ financialStatements, ticker, currency }} />
       )}
     </section>
   )
