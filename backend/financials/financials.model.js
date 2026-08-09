@@ -12,6 +12,7 @@ const incomeStatementSchema = new mongoose.Schema(
         netIncome: Number,
         basicEPS: Number,
         dilutedEPS: Number,
+        dilutedSharesOutstanding: Number,
     },
     { _id: false }
 );
@@ -37,6 +38,7 @@ const cashFlowSchema = new mongoose.Schema(
         investingCashFlow: Number,
         financingCashFlow: Number,
         freeCashFlow: Number,
+        depreciationAndAmortization: Number,
     },
     { _id: false }
 );

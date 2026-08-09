@@ -10,6 +10,7 @@ const statementFieldMappings = {
         netIncome: "annualNetIncome",
         basicEPS: "annualBasicEPS",
         dilutedEPS: "annualDilutedEPS",
+        dilutedSharesOutstanding: "annualDilutedAverageShares",
     },
     balanceSheet: {
         cashAndCashEquivalents: "annualCashCashEquivalentsAndShortTermInvestments",
@@ -27,6 +28,7 @@ const statementFieldMappings = {
         investingCashFlow: "annualInvestingCashFlow",
         financingCashFlow: "annualFinancingCashFlow",
         freeCashFlow: "annualFreeCashFlow",
+        depreciationAndAmortization: "annualDepreciationAmortizationDepletion",
     },
 };
 

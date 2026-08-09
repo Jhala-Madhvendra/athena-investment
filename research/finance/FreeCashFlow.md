@@ -31,11 +31,15 @@ const freeCashFlow = (statement) => {
     return null;
   }
 
-  return operatingCashFlow - capitalExpenditure;
+  // capitalExpenditure is stored as a negative outflow (standard cash-flow-statement
+  // sign) - the magnitude is normalized here regardless of the stored sign.
+  return operatingCashFlow - Math.abs(capitalExpenditure);
 };
 ```
 
 This is the only formula in the engine that doesn't call `safeDivide` — it's a subtraction, not a division, so there's no zero-denominator case to guard against. It still follows the same defensive pattern (explicit `typeof` checks before the arithmetic) so a missing field produces a clean `null` rather than `NaN`. In `ratio.calculator.js`, this is the one ratio tagged `unit: "currency"` rather than `"percent"` or `"ratio"`, which routes it through the frontend's `Intl.NumberFormat` currency formatter instead of a percentage or decimal — a good example of how the `unit` field lets one rendering path handle structurally different value types.
+
+**Bug history (fixed in Sprint 6):** from Sprint 1 through Sprint 5, this formula was `operatingCashFlow - capitalExpenditure` with no sign normalization. Yahoo reports `capitalExpenditure` as a negative outflow (confirmed empirically: `operatingCashFlow + capitalExpenditure` matches Yahoo's own reported FCF exactly), so the unmodified subtraction was silently *adding* CapEx back instead of subtracting it — inflating every "Free Cash Flow" ratio card by 2×CapEx. This was discovered while building Sprint 6's DCF engine (`dcf.engine.js` has the same normalization, documented alongside its own historical-FCFF calculation) and had no test coverage catching it until the regression test in `ratio/__tests__/ratio.formulas.test.js` was added as part of the fix.
 
 ## 6. Interview question
 

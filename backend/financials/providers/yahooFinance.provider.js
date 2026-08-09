@@ -91,6 +91,7 @@ const annualStatementTypes = [
     "annualNetIncome",
     "annualBasicEPS",
     "annualDilutedEPS",
+    "annualDilutedAverageShares",
     "annualCashCashEquivalentsAndShortTermInvestments",
     "annualTotalAssets",
     "annualTotalLiabilitiesNetMinorityInterest",
@@ -104,6 +105,7 @@ const annualStatementTypes = [
     "annualInvestingCashFlow",
     "annualFinancingCashFlow",
     "annualFreeCashFlow",
+    "annualDepreciationAmortizationDepletion",
 ];
 
 module.exports = YahooFinanceProvider;

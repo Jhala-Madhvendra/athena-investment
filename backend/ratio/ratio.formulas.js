@@ -88,7 +88,11 @@ const freeCashFlow = (statement) => {
         return null;
     }
 
-    return operatingCashFlow - capitalExpenditure;
+    // capitalExpenditure is stored as a negative outflow (standard cash-flow-statement
+    // sign, confirmed against Yahoo's own reported FCF: OCF + capitalExpenditure matches
+    // it exactly). Subtracting it unmodified would ADD the outflow back instead of
+    // reducing it, so the magnitude is normalized here regardless of the stored sign.
+    return operatingCashFlow - Math.abs(capitalExpenditure);
 };
 
 const assetTurnover = (statement) => {

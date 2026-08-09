@@ -1,0 +1,30 @@
+# Engineering Concept: Input Validation as a Hard Gate
+
+## What it is
+
+Athena's DCF feature validates input in two separate, purpose-specific places rather than one: `backend/valuation/dcf/dcf.validator.js` validates the pure engine's structural input (forecast assumptions, capital structure, and the WACC-vs-terminal-growth relationship), and `backend/valuation/valuation.validator.js` validates the HTTP request body's WACC/CAPM-specific fields the engine itself never sees directly (risk-free rate, beta, equity risk premium, pre-tax cost of debt). Both run *before* any calculation, and both return `{isValid, errors}` rather than throwing.
+
+## Why we use it
+
+A DCF is exactly the kind of system where "garbage in, garbage out" is unacceptable — an invalid input (WACC ≤ terminal growth, a missing diluted share count) doesn't just produce a wrong number, it produces a number that *looks* like a real valuation and could be trusted as one. Validating before calculation, with specific, human-readable error messages, converts a silent wrong-answer risk into a loud, actionable rejection — the difference between "here's your DCF result: $-4,200/share" and "Terminal growth rate (0.05) must be strictly less than WACC (0.03)."
+
+## Alternatives considered
+
+- **Defensive checks scattered through the calculation functions** (`dcf.formulas.js` already does this at the individual-formula level — e.g. `terminalValueGordonGrowth()` returns `null` if `wacc <= terminalGrowthRate`). Rejected as the *primary* validation mechanism, because a `null` deep inside a calculation doesn't explain *why* — by the time a formula-level guard fires, the useful context (which specific input was invalid, and what a valid value would look like) has often been lost. Athena uses these as a documented last-resort safety net, not the primary validation layer.
+- **One combined validator for both the WACC inputs and the engine's structural input.** Rejected — the WACC/CAPM inputs (risk-free rate, beta, ERP, cost of debt) aren't part of the pure engine's input contract at all (the engine only ever sees a pre-computed `wacc` number); validating them in the same module as the engine's own validator would blur the boundary between "what the HTTP layer accepts" and "what the pure calculation core requires," and would make the engine's validator depend on request-shape concerns it shouldn't need to know about.
+- **Silently substituting a default for missing/invalid values** (e.g., defaulting diluted shares to some fallback, or clamping an out-of-range tax rate). Rejected outright — this is the specific behavior the sprint's "never fabricate a value" principle exists to prevent; a silent substitution is a worse failure mode than a loud rejection, because the user has no way to know it happened.
+
+## Trade-offs
+
+**For hard-gate, two-layer validation:** every rejection comes with a specific, actionable message; the engine body never needs defensive `if` checks scattered through its arithmetic, because by the time `calculateDCF()`'s body runs past the validator, every input is guaranteed sound; validation logic is itself unit-tested independently and exhaustively (`dcf.validator.test.js` has dedicated tests for every rejection case: WACC = 0, WACC = terminal growth, WACC < terminal growth, missing diluted shares, negative debt, etc.).
+
+**Against it:** two validator files to keep in sync conceptually (though not in code — they validate genuinely non-overlapping fields), and a request that fails at the WACC-input layer never even reaches the engine's own validator, meaning a single request can only surface one *layer's* worth of errors per round trip in the worst case (mitigated in Athena's case since `valuation.validator.js`'s checks are all independent and collected together, not short-circuited one-at-a-time).
+
+## How Athena implements it
+
+`valuation.controller.js`'s `calculateDCF` handler runs `validateDCFRequestBody()` (the WACC-input layer) *before* even resolving the ticker or touching the database — a malformed request fails fast, with zero wasted I/O. If that passes, `valuation.service.js` computes WACC and assembles the engine input, and `dcf.engine.js`'s `calculateDCF()` runs `dcf.validator.js`'s `validateDCFInput()` as its first line of work, before any arithmetic. Both validators return `{isValid, errors}` — never throw — so calling code handles rejection with a plain `if` check and an HTTP 422, rather than a try/catch.
+
+## Interview questions
+
+1. *"Why does Athena have two separate validators for one feature instead of one combined validator?"* — Because they validate genuinely different things at genuinely different layers: `valuation.validator.js` checks HTTP-request-shape concerns (are the CAPM inputs present and numeric) that the pure calculation engine never sees directly, while `dcf.validator.js` checks the engine's own structural input contract (forecast assumptions, capital structure, the WACC-vs-terminal-growth relationship) independent of how that input was assembled. Combining them would leak HTTP-layer concerns into a module that's supposed to be usable with zero knowledge of Express or the request body's shape.
+2. *"A formula deep in the calculation (`terminalValueGordonGrowth`) already returns `null` if WACC ≤ terminal growth. Why also validate that same condition earlier, in `dcf.validator.js`, before the engine even runs?"* — The formula-level `null` is a last-resort safety net, not the primary defense — by the time it fires, the caller only knows "something failed," not which specific assumption was the problem or what a valid range would look like. The validator runs first specifically so the rejection includes the actual values (worked into a message like `Terminal growth rate (0.05) must be strictly less than WACC (0.03)`) and so the engine's arithmetic never has to run on input it would silently fail partway through — validating early converts a `null` propagating invisibly through several steps of arithmetic into one clear, immediate, actionable error.

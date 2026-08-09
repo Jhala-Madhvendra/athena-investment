@@ -26,6 +26,7 @@ describe("mapYahooQuote", () => {
                             priceToBook: { raw: 45.2 },
                             trailingEps: { raw: 6.2 },
                             forwardEps: { raw: 6.8 },
+                            beta: { raw: 1.25 },
                         },
                     },
                 ],
@@ -41,6 +42,7 @@ describe("mapYahooQuote", () => {
         expect(quote.valuation.peRatio).toBe(30.5);
         expect(quote.valuation.priceToBook).toBe(45.2);
         expect(quote.dividend.yield).toBe(0.005);
+        expect(quote.riskMetrics.beta).toBe(1.25);
         expect(typeof quote.asOf).toBe("string");
     });
 
@@ -58,6 +60,7 @@ describe("mapYahooQuote", () => {
         expect(quote.valuation.peRatio).toBeNull();
         expect(quote.valuation.eps).toBeNull();
         expect(quote.dividend.yield).toBeNull();
+        expect(quote.riskMetrics.beta).toBeNull();
     });
 
     it("returns null when Yahoo returns no result for the ticker", () => {

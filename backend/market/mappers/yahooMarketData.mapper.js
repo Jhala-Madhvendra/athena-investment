@@ -43,6 +43,9 @@ const mapYahooQuote = (response, requestedTicker) => {
             yield: getValue(summaryDetail.dividendYield),
             rate: getValue(summaryDetail.dividendRate),
         },
+        riskMetrics: {
+            beta: getValue(keyStatistics.beta),
+        },
         asOf: new Date().toISOString(),
     };
 };
