@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
+import { TrendingUp, TrendingDown, Minus, AlertTriangle, HelpCircle, Lightbulb, CheckCircle2, ArrowRight, XCircle } from 'lucide-react';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
 import Tabs from './ui/Tabs';
@@ -12,6 +13,8 @@ import TrendLineChart from './charts/TrendLineChart';
 import HealthScoreGauge from './charts/HealthScoreGauge';
 import { getScoreTier } from '../lib/scoreTokens';
 import { formatValue } from '../lib/statementTabs';
+
+const TREND_ICON = { '↑': TrendingUp, '↓': TrendingDown, '→': Minus, '⚠': AlertTriangle, '?': HelpCircle };
 
 const TONE_HEX = { positive: '#0ca30c', negative: '#d03b3b', neutral: '#898781' };
 
@@ -77,20 +80,11 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
   };
 
   /**
-   * Get emoji for trend direction
+   * Get the lucide icon component for a trend direction
    * @param {string} direction - Direction indicator (↑, ↓, →, ⚠, ?)
-   * @returns {string} Emoji representation
+   * @returns {React.ComponentType} Icon component
    */
-  const getTrendEmoji = (direction) => {
-    const map = {
-      '↑': '📈',
-      '↓': '📉',
-      '→': '➡️',
-      '⚠': '⚠️',
-      '?': '❓'
-    };
-    return map[direction] || direction;
-  };
+  const getTrendIcon = (direction) => TREND_ICON[direction] || HelpCircle;
 
   /**
    * Get plain-English label for trend direction
@@ -240,8 +234,8 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-xl font-bold text-slate-900">Financial Analysis</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <h2 className="text-xl font-bold tracking-tight text-ink">Financial Analysis</h2>
+        <p className="mt-1 text-sm text-ink-muted">
           {period?.startYear && period?.endYear
             ? `${period.startYear} – ${period.endYear} (${period.numYears} years)`
             : 'Analysis period'}
@@ -264,11 +258,11 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
             <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
               <HealthScoreGauge score={healthScore.overall} hex={scoreTier.hex} hexLight={scoreTier.hexLight} />
               <div className="min-w-0 flex-1 text-center sm:text-left">
-                <h3 className="text-lg font-bold text-slate-900">{healthScore.label}</h3>
-                <p className="mt-1 text-sm text-slate-600">
+                <h3 className="text-lg font-bold text-ink">{healthScore.label}</h3>
+                <p className="mt-1 text-sm text-ink-secondary">
                   Risk Level: <Badge tone={scoreTier.className}>{healthScore.riskLevel}</Badge>
                 </p>
-                <p className="mt-3 text-sm leading-relaxed text-slate-600">{healthScore.explanation}</p>
+                <p className="mt-3 text-sm leading-relaxed text-ink-secondary">{healthScore.explanation}</p>
               </div>
             </div>
           </Card>
@@ -277,30 +271,33 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
             <div className="space-y-3">
               {insights && insights.length > 0 ? (
                 insights.map((insight, idx) => (
-                  <div key={idx} className="rounded-lg border-l-4 border-brand-500 bg-slate-50 p-4">
+                  <div key={idx} className="rounded-lg border border-border border-l-[3px] border-l-brand-500 bg-surface-sunken p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Badge tone="brand">{insight.categoryLabel}</Badge>
-                      <span className="text-xs font-medium text-slate-500">{insight.confidence}% confident</span>
+                      <span className="text-xs font-medium text-ink-muted">{insight.confidence}% confident</span>
                     </div>
-                    <p className="mt-2 text-sm text-slate-800">{insight.text}</p>
-                    <p className="mt-2 text-xs text-slate-500 italic">💡 {insight.forward}</p>
+                    <p className="mt-2 text-sm text-ink">{insight.text}</p>
+                    <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-muted italic">
+                      <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 not-italic" aria-hidden="true" />
+                      {insight.forward}
+                    </p>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">No insights available</p>
+                <p className="text-sm text-ink-muted">No insights available</p>
               )}
             </div>
           </Card>
 
           <Card title="Growth Metrics (CAGR)">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard label="Revenue CAGR" {...toStatCardProps(revenueDisplay)} trendEmoji={trends.revenue && getTrendEmoji(trends.revenue.direction)} />
-              <StatCard label="Net Income CAGR" {...toStatCardProps(netIncomeDisplay)} trendEmoji={trends.netIncome && getTrendEmoji(trends.netIncome.direction)} />
-              <StatCard label="Operating Income CAGR" {...toStatCardProps(operatingIncomeDisplay)} trendEmoji={trends.operatingIncome && getTrendEmoji(trends.operatingIncome.direction)} />
-              <StatCard label="Free Cash Flow CAGR" {...toStatCardProps(fcfDisplay)} trendEmoji={trends.cashFlow && getTrendEmoji(trends.cashFlow.direction)} />
-              <StatCard label="Debt Growth" {...toStatCardProps(debtGrowthDisplay)} trendEmoji={trends.debtGrowth && getTrendEmoji(trends.debtGrowth.direction)} />
-              <StatCard label="Equity Growth" {...toStatCardProps(equityGrowthDisplay)} trendEmoji={trends.equityGrowth && getTrendEmoji(trends.equityGrowth.direction)} />
-              <StatCard label="Asset Growth" {...toStatCardProps(assetGrowthDisplay)} trendEmoji={trends.assetGrowth && getTrendEmoji(trends.assetGrowth.direction)} />
+              <StatCard label="Revenue CAGR" {...toStatCardProps(revenueDisplay)} trendIcon={trends.revenue && getTrendIcon(trends.revenue.direction)} />
+              <StatCard label="Net Income CAGR" {...toStatCardProps(netIncomeDisplay)} trendIcon={trends.netIncome && getTrendIcon(trends.netIncome.direction)} />
+              <StatCard label="Operating Income CAGR" {...toStatCardProps(operatingIncomeDisplay)} trendIcon={trends.operatingIncome && getTrendIcon(trends.operatingIncome.direction)} />
+              <StatCard label="Free Cash Flow CAGR" {...toStatCardProps(fcfDisplay)} trendIcon={trends.cashFlow && getTrendIcon(trends.cashFlow.direction)} />
+              <StatCard label="Debt Growth" {...toStatCardProps(debtGrowthDisplay)} trendIcon={trends.debtGrowth && getTrendIcon(trends.debtGrowth.direction)} />
+              <StatCard label="Equity Growth" {...toStatCardProps(equityGrowthDisplay)} trendIcon={trends.equityGrowth && getTrendIcon(trends.equityGrowth.direction)} />
+              <StatCard label="Asset Growth" {...toStatCardProps(assetGrowthDisplay)} trendIcon={trends.assetGrowth && getTrendIcon(trends.assetGrowth.direction)} />
             </div>
           </Card>
 
@@ -331,17 +328,20 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
 
           <Card title="Trend Summary">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {trendItems.map(({ label, trend }) => (
-                <div key={label} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                  <span className="text-sm font-medium text-slate-700">{label}</span>
-                  {trend && (
-                    <span className="flex items-center gap-1 text-sm text-slate-600">
-                      <span aria-hidden="true">{getTrendEmoji(trend.direction)}</span>
-                      {getTrendLabel(trend.direction)}
-                    </span>
-                  )}
-                </div>
-              ))}
+              {trendItems.map(({ label, trend }) => {
+                const TrendIcon = trend ? getTrendIcon(trend.direction) : null;
+                return (
+                  <div key={label} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface-sunken px-3 py-2.5">
+                    <span className="text-sm font-medium text-ink-secondary">{label}</span>
+                    {trend && (
+                      <span className="flex items-center gap-1.5 text-sm text-ink-secondary">
+                        <TrendIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        {getTrendLabel(trend.direction)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </Card>
         </div>
@@ -353,26 +353,26 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
           <div className="space-y-5">
             {insights && insights.length > 0 ? (
               insights.map((insight, idx) => (
-                <div key={idx} className="border-b border-slate-100 pb-5 last:border-0 last:pb-0">
+                <div key={idx} className="border-b border-border pb-5 last:border-0 last:pb-0">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h4 className="text-base font-semibold text-slate-900">{insight.categoryLabel}</h4>
-                    <div className="flex gap-2 text-xs font-medium text-slate-500">
+                    <h4 className="text-base font-semibold text-ink">{insight.categoryLabel}</h4>
+                    <div className="flex gap-2 text-xs font-medium text-ink-muted">
                       <span>Confidence: {insight.confidence}%</span>
                       <span>·</span>
                       <span>Priority #{insight.priority}</span>
                     </div>
                   </div>
-                  <p className="mt-2 text-sm text-slate-700">{insight.text}</p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    <strong className="font-semibold text-slate-800">Why it matters:</strong> {insight.investorImportance}
+                  <p className="mt-2 text-sm text-ink-secondary">{insight.text}</p>
+                  <p className="mt-2 text-sm text-ink-secondary">
+                    <strong className="font-semibold text-ink">Why it matters:</strong> {insight.investorImportance}
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    <strong className="font-semibold text-slate-800">Looking ahead:</strong> {insight.forward}
+                  <p className="mt-1 text-sm text-ink-secondary">
+                    <strong className="font-semibold text-ink">Looking ahead:</strong> {insight.forward}
                   </p>
                 </div>
               ))
             ) : (
-              <p className="text-sm text-slate-500">No insights available</p>
+              <p className="text-sm text-ink-muted">No insights available</p>
             )}
           </div>
         </Card>
@@ -381,7 +381,7 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
       {/* Components */}
       {activeSubtab === 'components' && (
         <Card title="Component Breakdown">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-ink-secondary">
             Financial Health Score is composed of five dimensions, each scored 0-100.
           </p>
 
@@ -389,33 +389,36 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
             {componentDefs.map(({ key, label, description, basis }) => {
               const score = healthScore.components[key];
               const tier = getScoreTier(score);
+              const StrengthIcon = score >= 75 ? CheckCircle2 : score >= 50 ? ArrowRight : XCircle;
+              const strengthLabel = score >= 75 ? 'Strong' : score >= 50 ? 'Adequate' : 'Weak';
               return (
-                <div key={key} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div key={key} className="rounded-lg border border-border bg-surface-sunken p-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-slate-800">{label}</h4>
+                    <h4 className="text-sm font-semibold text-ink-secondary">{label}</h4>
                     <span className="text-lg font-bold tabular-nums" style={{ color: tier.hex }}>
                       {score}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">{description}</p>
+                  <p className="mt-1 text-xs text-ink-muted">{description}</p>
                   <Meter value={score} hex={tier.hex} hexLight={tier.hexLight} showValue={false} className="mt-3" />
-                  <p className="mt-2 text-xs text-slate-400">Based on: {basis}</p>
-                  <p className="mt-2 text-xs font-medium" style={{ color: tier.hex }}>
-                    {score >= 75 ? '✓ Strong' : score >= 50 ? '→ Adequate' : '✗ Weak'}
+                  <p className="mt-2 text-xs text-ink-muted">Based on: {basis}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: tier.hex }}>
+                    <StrengthIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {strengthLabel}
                   </p>
                 </div>
               );
             })}
           </div>
 
-          <div className="mt-6 border-t border-slate-100 pt-5">
-            <h4 className="text-sm font-semibold text-slate-800">Weighting Applied</h4>
+          <div className="mt-6 border-t border-border pt-5">
+            <h4 className="text-sm font-semibold text-ink-secondary">Weighting Applied</h4>
             <div className="mt-3 space-y-3">
               {healthScore.weights && Object.entries(healthScore.weights).map(([component, weight]) => (
                 <div key={component} className="flex items-center gap-3">
-                  <span className="w-28 shrink-0 text-sm capitalize text-slate-600">{component}</span>
+                  <span className="w-28 shrink-0 text-sm text-ink-secondary capitalize">{component}</span>
                   <Meter value={weight * 100} hex="#2a78d6" hexLight="#cde2fb" showValue={false} />
-                  <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800">
+                  <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-ink">
                     {(weight * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -426,9 +429,9 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
       )}
 
       {/* Footer */}
-      <div className="border-t border-slate-200 pt-4 text-center">
-        <p className="text-xs text-slate-400">Calculated: {new Date(analysis.calculatedAt).toLocaleString()}</p>
-        <p className="mt-1 text-xs text-slate-400">
+      <div className="border-t border-border pt-4 text-center">
+        <p className="text-xs text-ink-muted">Calculated: {new Date(analysis.calculatedAt).toLocaleString()}</p>
+        <p className="mt-1 text-xs text-ink-muted">
           This analysis is for informational purposes only and should not be considered investment advice.
         </p>
       </div>

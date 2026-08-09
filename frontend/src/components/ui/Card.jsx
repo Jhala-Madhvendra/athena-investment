@@ -4,14 +4,14 @@
  */
 function Card({ title, eyebrow, action, children, className = '', padded = true }) {
   return (
-    <section className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}>
+    <section className={`rounded-xl border border-border bg-surface-raised shadow-sm ${className}`}>
       {(title || eyebrow || action) && (
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
             {eyebrow && (
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{eyebrow}</p>
+              <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">{eyebrow}</p>
             )}
-            {title && <h3 className="text-base font-semibold text-slate-900">{title}</h3>}
+            {title && <h3 className="text-base font-semibold text-ink">{title}</h3>}
           </div>
           {action && <div className="shrink-0">{action}</div>}
         </div>

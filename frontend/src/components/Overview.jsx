@@ -261,7 +261,7 @@ function Overview() {
       </Card>
 
       {/* Explore further */}
-      <div className="border-t border-slate-200 pt-6">
+      <div className="border-t border-border pt-6">
         <SectionHeader title="Explore further" description="Drill into the full data behind this summary." />
         <div className="mt-4 flex flex-wrap gap-3">
           <Link to={`/financials/${ticker}/financial-statements`}>

@@ -9,6 +9,27 @@
   --color-brand-500: #2a78d6;
   --color-brand-600: #256abf;
   --color-brand-700: #184f95;
+  --color-brand-800: #123a6e;
+  --color-brand-900: #0d2c54;
+
+  /* Deep navy rail — the sidebar/nav surface. Distinct from brand so brand stays reserved for interactive accents. */
+  --color-navy-950: #070c17;
+  --color-navy-900: #0b1424;
+  --color-navy-800: #101d33;
+  --color-navy-700: #172945;
+  --color-navy-600: #22375a;
+  --color-navy-border: #223050;
+  --color-navy-ink-muted: #8b96ad;
+
+  /* Ink / neutral scale — cooler than default slate, used for all body chrome */
+  --color-ink: #0c1220;
+  --color-ink-secondary: #47506b;
+  --color-ink-muted: #7c849c;
+  --color-surface: #f4f5f8;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #eef0f4;
+  --color-border: #e3e6ed;
+  --color-border-strong: #cbd1de;
 
   /* Financial sentiment (validated status palette) — used only for growth/health signal, never UI chrome. */
   --color-excellent: #006300;
@@ -32,6 +53,12 @@
   --color-chart-baseline: #c3c2b7;
   --color-series-1: #2a78d6;
   --color-series-2: #eb6834;
+
+  /* Elevation — layered, low-opacity shadows read as "premium"; a single hard shadow reads flat */
+  --shadow-xs: 0 1px 2px 0 rgb(12 18 32 / 0.04);
+  --shadow-sm: 0 1px 2px -1px rgb(12 18 32 / 0.06), 0 2px 4px -2px rgb(12 18 32 / 0.05);
+  --shadow-md: 0 4px 8px -2px rgb(12 18 32 / 0.06), 0 12px 24px -8px rgb(12 18 32 / 0.08);
+  --shadow-lg: 0 8px 16px -4px rgb(12 18 32 / 0.08), 0 24px 48px -12px rgb(12 18 32 / 0.14);
 }
 
 @layer base {
@@ -40,7 +67,8 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply text-ink antialiased;
+    background: var(--color-surface);
     font-family: var(--font-sans);
   }
 }
@@ -49,3 +77,10 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Thin, low-contrast scrollbar for the nav rail and dense scroll areas */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-navy-600) transparent;
+}
+

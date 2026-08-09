@@ -1,16 +1,16 @@
 import Card from '../ui/Card';
 import { formatValue } from '../../lib/statementTabs';
 
-const formatCagr = (value) => (value === null || value === undefined ? '—' : `${(value * 100).toFixed(2)}%`);
+const formatCagr = (value) => (typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : '—');
 const formatPercentScale = (value) => (value === null || value === undefined ? '—' : `${value.toFixed(2)}%`);
 const formatSignedPercent = (value) =>
   value === null || value === undefined ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
 const formatRatio = (value) => (value === null || value === undefined ? '—' : value.toFixed(2));
 
 const Row = ({ label, value }) => (
-  <div className="flex items-center justify-between border-b border-slate-100 py-2.5 last:border-0">
-    <span className="text-sm text-slate-600">{label}</span>
-    <span className="text-sm font-semibold tabular-nums text-slate-900">{value}</span>
+  <div className="flex items-center justify-between border-b border-border py-2.5 last:border-0">
+    <span className="text-sm text-ink-secondary">{label}</span>
+    <span className="text-sm font-semibold tabular-nums text-ink">{value}</span>
   </div>
 );
 
@@ -24,7 +24,7 @@ function BusinessVsMarketPerformance({ growth, ratios, performance, quote }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm leading-relaxed text-slate-600">
+      <p className="text-sm leading-relaxed text-ink-secondary">
         Business performance measures how the company itself is doing (revenue growth, profitability, cash
         generation). Market performance measures how investors are currently pricing the company's shares. The two
         don't always move together - a strong business can trade at a low valuation, and a weaker business can trade

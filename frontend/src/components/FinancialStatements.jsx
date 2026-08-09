@@ -1,15 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useParams } from 'react-router-dom'
-import Tabs from './ui/Tabs'
 import Skeleton from './ui/Skeleton'
-
-const TAB_ITEMS = [
-  { key: 'overview', label: 'Overview', to: 'overview' },
-  { key: 'financial-statements', label: 'Financial Statements', to: 'financial-statements' },
-  { key: 'financial-analysis', label: 'Financial Analysis', to: 'financial-analysis' },
-  { key: 'market-intelligence', label: 'Market Intelligence', to: 'market-intelligence' },
-  { key: 'valuation', label: 'Valuation (Coming Soon)', to: 'valuation' },
-]
 
 function FinancialStatements() {
   const { ticker } = useParams()
@@ -65,13 +56,11 @@ function FinancialStatements() {
     <section aria-labelledby="financial-statements-title" className="space-y-6">
       <div>
         <p className="text-xs font-semibold tracking-wide text-brand-600 uppercase">Company analysis</p>
-        <h1 id="financial-statements-title" className="mt-1 text-3xl font-bold text-slate-900">
+        <h1 id="financial-statements-title" className="mt-1 text-3xl font-bold tracking-tight text-ink">
           {ticker?.toUpperCase()}
         </h1>
-        <p className="mt-1 text-sm text-slate-500">Annual reported figures and automated business analysis</p>
+        <p className="mt-1 text-sm text-ink-muted">Annual reported figures and automated business analysis</p>
       </div>
-
-      <Tabs items={TAB_ITEMS} />
 
       {isLoading && <Skeleton variant="card" count={1} />}
 

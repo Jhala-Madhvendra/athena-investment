@@ -9,9 +9,9 @@ function Meter({ value, max = 100, label, hex = '#2a78d6', hexLight = '#e5e4de',
     <div className={`w-full ${className}`}>
       {(label || showValue) && (
         <div className="mb-1.5 flex items-center justify-between gap-2 text-sm">
-          {label && <span className="font-medium text-slate-700">{label}</span>}
+          {label && <span className="font-medium text-ink-secondary">{label}</span>}
           {showValue && (
-            <span className="tabular-nums font-semibold text-slate-900">
+            <span className="tabular-nums font-semibold text-ink">
               {Math.round(value)}
               {valueSuffix}
             </span>

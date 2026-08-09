@@ -20,24 +20,24 @@ function CompanyHeader({ company, quote, quoteLoading = false, quoteError = '' }
     .join(' · ');
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface-raised p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-2xl font-bold text-slate-900">{company?.name || '—'}</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-ink">{company?.name || '—'}</h2>
           {company?.ticker && <Badge tone="neutral">{company.ticker}</Badge>}
         </div>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        {subtitle && <p className="mt-1 text-sm text-ink-muted">{subtitle}</p>}
       </div>
 
       <div className="shrink-0 text-left sm:text-right">
         {quoteLoading ? (
-          <p className="text-sm text-slate-400">Loading price…</p>
+          <p className="text-sm text-ink-muted">Loading price…</p>
         ) : quoteError || current === null ? (
-          <p className="text-sm text-slate-400">Price unavailable</p>
+          <p className="text-sm text-ink-muted">Price unavailable</p>
         ) : (
           <>
-            <p className="text-2xl font-bold tabular-nums text-slate-900">
-              {current.toFixed(2)} <span className="text-sm font-medium text-slate-500">{currency}</span>
+            <p className="text-2xl font-bold tabular-nums text-ink">
+              {current.toFixed(2)} <span className="text-sm font-medium text-ink-muted">{currency}</span>
             </p>
             {change !== null && (
               <p className={`text-sm font-semibold tabular-nums ${isPositive ? 'text-good' : 'text-critical'}`}>
@@ -48,7 +48,7 @@ function CompanyHeader({ company, quote, quoteLoading = false, quoteError = '' }
             )}
           </>
         )}
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-ink-muted">
           Market Cap: {quote?.price?.marketCap ? `${formatValue(quote.price.marketCap)} ${currency}` : '—'}
         </p>
       </div>

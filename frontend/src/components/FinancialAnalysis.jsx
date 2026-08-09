@@ -52,15 +52,15 @@ const ratioDescriptions = {
 }
 
 const buildCard = (key, metric, currency) => (
-  <article key={key} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+  <article key={key} className="rounded-lg border border-border bg-surface-sunken p-4">
     <div className="flex items-start justify-between gap-2">
-      <h4 className="text-sm font-semibold text-slate-800">{metric.label}</h4>
-      <span className="shrink-0 text-xs text-slate-400">{metric.available ? metric.unit : 'N/A'}</span>
+      <h4 className="text-sm font-semibold text-ink-secondary">{metric.label}</h4>
+      <span className="shrink-0 text-xs text-ink-muted">{metric.available ? metric.unit : 'N/A'}</span>
     </div>
-    <p className="mt-2 text-xl font-bold tabular-nums text-slate-900">
+    <p className="mt-2 text-xl font-bold tabular-nums text-ink">
       {formatRatioValue(metric.value, metric.unit, currency)}
     </p>
-    <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+    <p className="mt-1.5 text-xs leading-relaxed text-ink-muted">
       {ratioDescriptions[key] || 'Derived from the most recent financial statements.'}
     </p>
   </article>
@@ -127,10 +127,10 @@ function FinancialAnalysis() {
     <section aria-labelledby="financial-analysis-title" className="space-y-6">
       <div>
         <p className="text-xs font-semibold tracking-wide text-brand-600 uppercase">Financial analysis</p>
-        <h2 id="financial-analysis-title" className="mt-1 text-xl font-bold text-slate-900">
+        <h2 id="financial-analysis-title" className="mt-1 text-xl font-bold tracking-tight text-ink">
           Ratio analysis
         </h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-ink-muted">
           Latest ratios for {ticker.toUpperCase()} ({year || 'latest year'}).
         </p>
       </div>

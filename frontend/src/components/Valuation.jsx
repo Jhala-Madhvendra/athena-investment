@@ -1,9 +1,10 @@
+import { Calculator } from 'lucide-react'
 import EmptyState from './ui/EmptyState'
 
 function Valuation() {
   return (
     <EmptyState
-      icon="🧮"
+      icon={Calculator}
       title="Valuation — Coming Soon"
       message="Intrinsic value analysis (DCF and related models) will be added in a future sprint, helping you assess whether the current price reflects the company's underlying fundamentals."
     />

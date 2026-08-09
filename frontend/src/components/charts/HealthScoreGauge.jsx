@@ -31,8 +31,8 @@ function HealthScoreGauge({ score, hex, hexLight, size = 200 }) {
         />
       </RadialBarChart>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-5xl leading-none font-bold text-slate-900">{Math.round(score)}</span>
-        <span className="mt-1 text-xs font-medium text-slate-500">/ 100</span>
+        <span className="text-5xl leading-none font-bold text-ink">{Math.round(score)}</span>
+        <span className="mt-1 text-xs font-medium text-ink-muted">/ 100</span>
       </div>
     </div>
   );

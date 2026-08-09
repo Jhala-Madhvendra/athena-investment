@@ -161,8 +161,8 @@ function MarketIntelligence() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-900">Market Intelligence</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <h2 className="text-xl font-bold tracking-tight text-ink">Market Intelligence</h2>
+        <p className="mt-1 text-sm text-ink-muted">
           How the market is currently pricing {ticker?.toUpperCase()}. Figures are informational only and are not
           investment recommendations.
         </p>

@@ -7,9 +7,9 @@ function Skeleton({ variant = 'text', count = 3, className = '' }) {
 
   if (variant === 'card') {
     return (
-      <div className={`animate-pulse rounded-xl border border-slate-200 bg-white p-5 ${className}`}>
-        <div className="mb-3 h-3 w-1/3 rounded bg-slate-200" />
-        <div className="h-7 w-2/3 rounded bg-slate-200" />
+      <div className={`animate-pulse rounded-xl border border-border bg-surface-raised p-5 shadow-sm ${className}`}>
+        <div className="mb-3 h-3 w-1/3 rounded bg-surface-sunken" />
+        <div className="h-7 w-2/3 rounded bg-surface-sunken" />
       </div>
     );
   }
@@ -18,7 +18,7 @@ function Skeleton({ variant = 'text', count = 3, className = '' }) {
     return (
       <div className={`animate-pulse space-y-2 ${className}`}>
         {items.map((_, i) => (
-          <div key={i} className="h-6 w-full rounded bg-slate-200" />
+          <div key={i} className="h-6 w-full rounded bg-surface-sunken" />
         ))}
       </div>
     );
@@ -27,7 +27,7 @@ function Skeleton({ variant = 'text', count = 3, className = '' }) {
   return (
     <div className={`animate-pulse space-y-2 ${className}`}>
       {items.map((_, i) => (
-        <div key={i} className="h-4 rounded bg-slate-200" style={{ width: `${70 + (i % 3) * 10}%` }} />
+        <div key={i} className="h-4 rounded bg-surface-sunken" style={{ width: `${70 + (i % 3) * 10}%` }} />
       ))}
     </div>
   );

@@ -1,6 +1,7 @@
+import { TrendingUp, TrendingDown, Minus, AlertTriangle, HelpCircle } from 'lucide-react';
 import { getDirectionTier } from '../../lib/scoreTokens';
 
-const EMOJI = { '↑': '📈', '↓': '📉', '→': '➡️', '⚠': '⚠️', '?': '❓' };
+const ICON = { '↑': TrendingUp, '↓': TrendingDown, '→': Minus, '⚠': AlertTriangle, '?': HelpCircle };
 const LABEL = { '↑': 'Improving', '↓': 'Declining', '→': 'Stable', '⚠': 'Volatile', '?': 'Unknown' };
 
 /**
@@ -10,10 +11,11 @@ const LABEL = { '↑': 'Improving', '↓': 'Declining', '→': 'Stable', '⚠': 
  */
 function TrendIndicator({ direction, invert = false, className = '' }) {
   const tier = getDirectionTier(direction, invert);
+  const Icon = ICON[direction] || HelpCircle;
 
   return (
     <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${className}`} style={{ color: tier.hex }}>
-      <span aria-hidden="true">{EMOJI[direction] || '❓'}</span>
+      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
       {LABEL[direction] || 'Unknown'}
     </span>
   );

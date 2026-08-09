@@ -9,8 +9,8 @@ function ChartTooltip({ active, payload, label, formatter = (v) => v }) {
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-lg">
-      <p className="mb-1.5 text-xs font-semibold text-slate-500">{label}</p>
+    <div className="rounded-lg border border-border bg-surface-raised px-3 py-2 shadow-lg">
+      <p className="mb-1.5 text-xs font-semibold text-ink-muted">{label}</p>
       <div className="space-y-1">
         {payload.map((entry) => (
           <div key={entry.dataKey} className="flex items-center gap-2 text-sm">
@@ -19,8 +19,8 @@ function ChartTooltip({ active, payload, label, formatter = (v) => v }) {
               style={{ backgroundColor: entry.color }}
               aria-hidden="true"
             />
-            <span className="text-slate-500">{entry.name}</span>
-            <span className="ml-auto font-semibold tabular-nums text-slate-900">
+            <span className="text-ink-muted">{entry.name}</span>
+            <span className="ml-auto font-semibold tabular-nums text-ink">
               {entry.value === null || entry.value === undefined ? '—' : formatter(entry.value)}
             </span>
           </div>

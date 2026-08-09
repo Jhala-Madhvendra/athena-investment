@@ -45,7 +45,7 @@ function PriceHistoryChart({
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 period === p.key
                   ? 'bg-brand-600 text-white'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                  : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'
               }`}
             >
               {p.label}

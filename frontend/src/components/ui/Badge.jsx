@@ -17,7 +17,7 @@ function Badge({ tone = 'neutral', children, className = '' }) {
   const dot = TONE_HEX[tone] ?? TONE_HEX.neutral;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-sunken px-2.5 py-1 text-xs font-medium text-ink-secondary ${className}`}
     >
       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: dot }} aria-hidden="true" />
       {children}

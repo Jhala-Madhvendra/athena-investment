@@ -7,8 +7,8 @@ function SectionHeader({ title, description, action }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+        <h2 className="text-xl font-bold tracking-tight text-ink">{title}</h2>
+        {description && <p className="mt-1 text-sm text-ink-muted">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>

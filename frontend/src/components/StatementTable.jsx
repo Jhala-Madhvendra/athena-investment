@@ -38,15 +38,15 @@ function StatementTable({ statementKey }) {
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              <th scope="col" className="px-5 py-2.5 text-left font-semibold text-slate-600">
+            <tr className="border-b border-border bg-surface-sunken">
+              <th scope="col" className="sticky left-0 bg-surface-sunken px-5 py-2.5 text-left font-semibold text-ink-secondary">
                 Metric
               </th>
               {years.map((year) => (
                 <th
                   key={year}
                   scope="col"
-                  className="px-5 py-2.5 text-right font-semibold text-slate-600 tabular-nums"
+                  className="px-5 py-2.5 text-right font-semibold tabular-nums text-ink-secondary"
                 >
                   FY {year}
                 </th>
@@ -55,14 +55,14 @@ function StatementTable({ statementKey }) {
           </thead>
           <tbody>
             {tab.rows.map(([field, label]) => (
-              <tr key={field} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
-                <th scope="row" className="px-5 py-2.5 text-left font-medium text-slate-700">
+              <tr key={field} className="border-b border-border last:border-0 hover:bg-surface-sunken/60">
+                <th scope="row" className="sticky left-0 bg-surface-raised px-5 py-2.5 text-left font-medium text-ink-secondary">
                   {label}
                 </th>
                 {financialStatements.map((statement) => (
                   <td
                     key={`${statement.year}-${field}`}
-                    className="px-5 py-2.5 text-right tabular-nums text-slate-900"
+                    className="px-5 py-2.5 text-right tabular-nums text-ink"
                   >
                     {formatValue(statement[statementKey]?.[field], field)}
                   </td>

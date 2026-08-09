@@ -7,17 +7,17 @@ import { NavLink } from 'react-router-dom';
  */
 function Tabs({ items }) {
   return (
-    <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-slate-200">
+    <div role="tablist" className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface-sunken p-1">
       {items.map((item) => (
         <NavLink
           key={item.key}
           to={item.to}
           end={item.end}
           className={({ isActive }) =>
-            `shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            `shrink-0 rounded-md px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
               isActive
-                ? 'border-brand-600 text-brand-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'bg-surface-raised text-ink shadow-xs'
+                : 'text-ink-muted hover:text-ink'
             }`
           }
         >
