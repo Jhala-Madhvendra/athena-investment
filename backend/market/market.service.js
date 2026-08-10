@@ -1,6 +1,7 @@
 const Company = require("../models/company.model");
 const MarketHistory = require("./market.model");
 const marketDataProvider = require("./providers/marketData.provider.registry");
+const logger = require("../utils/logger");
 
 class CompanyNotFoundError extends Error {
     constructor(ticker) {
@@ -101,14 +102,45 @@ const refreshHistoricalPrices = async (normalizedTicker, companyId) => {
         return;
     }
 
-    await Promise.all(
-        bars.map((bar) =>
-            MarketHistory.findOneAndUpdate(
-                { ticker: normalizedTicker, date: bar.date },
-                { ...bar, ticker: normalizedTicker, companyId, source: process.env.MARKET_DATA_PROVIDER || "yahoo" },
-                { upsert: true, runValidators: true }
-            )
-        )
+    const source = process.env.MARKET_DATA_PROVIDER || "yahoo";
+
+    // bulkWrite's `runValidators` doesn't reliably enforce required-field
+    // validation on upserts (verified: a bar with a null `close` passed
+    // through silently) - validate each bar up front instead and drop any
+    // that fail, preserving the guarantee the old per-bar findOneAndUpdate gave.
+    const validationResults = await Promise.all(
+        bars.map(async (bar) => {
+            const doc = new MarketHistory({ ...bar, ticker: normalizedTicker, companyId, source });
+
+            try {
+                await doc.validate();
+                return bar;
+            } catch (validationError) {
+                logger.warn(
+                    { err: validationError, ticker: normalizedTicker, date: bar.date },
+                    "Dropping invalid historical price bar"
+                );
+                return null;
+            }
+        })
+    );
+    const validBars = validationResults.filter(Boolean);
+
+    if (!validBars.length) {
+        return;
+    }
+
+    // A single bulkWrite instead of one findOneAndUpdate per bar - up to ~1260
+    // individual round trips (5y of daily bars) collapsed into one network call.
+    await MarketHistory.bulkWrite(
+        validBars.map((bar) => ({
+            updateOne: {
+                filter: { ticker: normalizedTicker, date: bar.date },
+                update: { ...bar, ticker: normalizedTicker, companyId, source },
+                upsert: true,
+            },
+        })),
+        { ordered: false }
     );
 };
 

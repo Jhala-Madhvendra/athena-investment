@@ -1,5 +1,17 @@
+const mockValidate = jest.fn();
+
 jest.mock("../../models/company.model", () => ({ findOne: jest.fn() }));
-jest.mock("../market.model", () => ({ find: jest.fn(), findOneAndUpdate: jest.fn() }));
+jest.mock("../market.model", () => {
+    // MarketHistory is `new`-ed for per-document validation before bulkWrite -
+    // needs a real constructor, not just a plain object of static mocks.
+    const MockMarketHistory = jest.fn().mockImplementation(function (doc) {
+        Object.assign(this, doc);
+        this.validate = mockValidate;
+    });
+    MockMarketHistory.find = jest.fn();
+    MockMarketHistory.bulkWrite = jest.fn();
+    return MockMarketHistory;
+});
 jest.mock("../providers/marketData.provider.registry", () => ({
     getQuote: jest.fn(),
     getHistoricalPrices: jest.fn(),
@@ -27,6 +39,10 @@ const chainableResult = (records) => {
     };
     return chain;
 };
+
+beforeEach(() => {
+    mockValidate.mockReset().mockResolvedValue(undefined);
+});
 
 afterEach(() => {
     jest.clearAllMocks();
@@ -80,13 +96,34 @@ describe("getHistoricalPrices", () => {
         marketDataProvider.getHistoricalPrices.mockResolvedValue([
             { date: TODAY, open: 40, high: 43, low: 39, close: 42, adjClose: 42, volume: 1000 },
         ]);
-        MarketHistory.findOneAndUpdate.mockResolvedValue({});
+        MarketHistory.bulkWrite.mockResolvedValue({});
 
         const bars = await marketService.getHistoricalPrices("NEWTICKER", "1m");
 
         expect(marketDataProvider.getHistoricalPrices).toHaveBeenCalledWith("NEWTICKER", "5y");
-        expect(MarketHistory.findOneAndUpdate).toHaveBeenCalledTimes(1);
+        expect(MarketHistory.bulkWrite).toHaveBeenCalledTimes(1);
+        expect(MarketHistory.bulkWrite.mock.calls[0][0]).toHaveLength(1);
         expect(bars).toEqual([{ date: TODAY, close: 42 }]);
+    });
+
+    it("drops bars that fail schema validation before writing, keeping the valid ones", async () => {
+        Company.findOne.mockResolvedValue({ _id: "company1" });
+        MarketHistory.find
+            .mockReturnValueOnce(chainableResult([]))
+            .mockReturnValueOnce(chainableResult([{ date: TODAY, close: 42 }]));
+        marketDataProvider.getHistoricalPrices.mockResolvedValue([
+            { date: TODAY, open: 40, high: 43, low: 39, close: 42, adjClose: 42, volume: 1000 },
+            { date: daysAgo(1), open: 40, high: 43, low: 39, close: null, adjClose: null, volume: 1000 },
+        ]);
+        mockValidate
+            .mockResolvedValueOnce(undefined) // first bar: valid
+            .mockRejectedValueOnce(new Error("close: Path `close` is required.")); // second bar: invalid
+        MarketHistory.bulkWrite.mockResolvedValue({});
+
+        await marketService.getHistoricalPrices("MIXEDTICKER", "1m");
+
+        expect(MarketHistory.bulkWrite).toHaveBeenCalledTimes(1);
+        expect(MarketHistory.bulkWrite.mock.calls[0][0]).toHaveLength(1);
     });
 
     it("skips the provider refresh when cached coverage already spans the period and is fresh", async () => {
