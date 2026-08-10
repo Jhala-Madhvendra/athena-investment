@@ -42,9 +42,23 @@ describe("freeCashFlow", () => {
         expect(formulas.freeCashFlow(negative)).toBe(formulas.freeCashFlow(positive));
     });
 
-    it("returns null when either input is missing", () => {
+    it("returns null when neither input nor a reported freeCashFlow is available", () => {
         const statement = buildStatement({ cashFlow: { operatingCashFlow: null, capitalExpenditure: -80 } });
         expect(formulas.freeCashFlow(statement)).toBeNull();
+    });
+
+    it("falls back to the provider's reported freeCashFlow when capitalExpenditure is missing", () => {
+        const statement = buildStatement({
+            cashFlow: { operatingCashFlow: 260, capitalExpenditure: null, freeCashFlow: 199 },
+        });
+        expect(formulas.freeCashFlow(statement)).toBe(199);
+    });
+
+    it("still prefers the computed value over the reported one when both are available", () => {
+        const statement = buildStatement({
+            cashFlow: { operatingCashFlow: 260, capitalExpenditure: -80, freeCashFlow: 999 },
+        });
+        expect(formulas.freeCashFlow(statement)).toBe(180);
     });
 });
 

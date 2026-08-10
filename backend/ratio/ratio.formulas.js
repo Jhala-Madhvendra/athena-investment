@@ -84,15 +84,20 @@ const freeCashFlow = (statement) => {
     const operatingCashFlow = statement.cashFlow.operatingCashFlow;
     const capitalExpenditure = statement.cashFlow.capitalExpenditure;
 
-    if (typeof operatingCashFlow !== "number" || typeof capitalExpenditure !== "number") {
-        return null;
-    }
-
     // capitalExpenditure is stored as a negative outflow (standard cash-flow-statement
     // sign, confirmed against Yahoo's own reported FCF: OCF + capitalExpenditure matches
     // it exactly). Subtracting it unmodified would ADD the outflow back instead of
     // reducing it, so the magnitude is normalized here regardless of the stored sign.
-    return operatingCashFlow - Math.abs(capitalExpenditure);
+    if (typeof operatingCashFlow === "number" && typeof capitalExpenditure === "number") {
+        return operatingCashFlow - Math.abs(capitalExpenditure);
+    }
+
+    // Some providers report a year's headline free cash flow before they've finished
+    // breaking out its capitalExpenditure line item (seen with Twelve Data's newest
+    // reported fiscal year). Fall back to the provider's own reported figure rather
+    // than showing nothing for a number that does exist, just not in the shape needed above.
+    const reportedFreeCashFlow = statement.cashFlow.freeCashFlow;
+    return typeof reportedFreeCashFlow === "number" ? reportedFreeCashFlow : null;
 };
 
 const assetTurnover = (statement) => {
