@@ -39,3 +39,15 @@ Shown in the Market Snapshot section (`valuation.priceToBook`) and in the Busine
 - Asset-light, high-growth companies can show very high P/B ratios that look "expensive" purely because their balance sheet understates their real economic value.
 - Companies that have written down assets (impairments) can show artificially low book value, inflating P/B in a way unrelated to the underlying business quality.
 - P/B is not comparable across industries with fundamentally different capital structures.
+
+## 8. Sprint 7 addendum: a second, distinct P/B in Comparable Company Analysis
+
+Since Sprint 7, Athena computes a **second P/B figure**, separate from the Yahoo-sourced one above:
+
+| | This doc's P/B (Sprint 4) | Comps' P/B (Sprint 7) |
+|---|---|---|
+| Source | Sourced directly from Yahoo's `defaultKeyStatistics.priceToBook` | Computed by Athena: `Market Cap / Total Stockholders' Equity` (`comps.formulas.js`'s `priceToBook()`) |
+| Purpose | A market snapshot metric, shown standalone | A trading multiple, aggregated across a peer group and applied to a target's own book value to produce an Implied Value Per Share |
+| Negative/zero book value | Not applicable/returned by Yahoo | Explicitly excluded (`null`) - see `research/finance/OutlierHandling.md` |
+
+As with P/E (see `PERatio.md`'s Sprint 7 addendum), both are legitimate, will usually be close, and are kept as separate code paths so the Comps engine's peer aggregation only ever depends on Athena's own consistently-sourced book-value figures, not a third-party snapshot. P/B is an **equity** multiple - see `research/finance/ValuationMultiples.md` for why it is never bridged through Enterprise Value.

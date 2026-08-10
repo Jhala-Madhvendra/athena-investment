@@ -78,6 +78,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Tailwind's Preflight resets buttons to `cursor: default` (matching the
+   native browser default) - every clickable button across the app needs an
+   explicit opt-in back to a pointer cursor, or hovering one shows an arrow
+   instead of a finger. Disabled buttons keep whatever cursor a component
+   sets explicitly (usually `disabled:cursor-not-allowed`). */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 /* Thin, low-contrast scrollbar for the nav rail and dense scroll areas */
 .scrollbar-thin {
   scrollbar-width: thin;

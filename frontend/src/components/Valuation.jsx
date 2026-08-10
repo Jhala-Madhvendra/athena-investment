@@ -5,6 +5,8 @@ import Card from './ui/Card';
 import Skeleton from './ui/Skeleton';
 import ErrorState from './ui/ErrorState';
 import EmptyState from './ui/EmptyState';
+import Tabs from './ui/Tabs';
+import ComparableCompanies from './ComparableCompanies';
 import DCFAssumptionsForm from './valuation/DCFAssumptionsForm';
 import HistoricalFCFFTable from './valuation/HistoricalFCFFTable';
 import CapitalStructureSummary from './valuation/CapitalStructureSummary';
@@ -67,8 +69,9 @@ const FIELD_LABELS = {
  * "Calculation Transparency" in the Sprint 6 brief).
  */
 function Valuation() {
-  const { ticker } = useParams();
+  const { ticker, subtab } = useParams();
   const { currency } = useOutletContext();
+  const activeSubtab = subtab === 'comps' ? 'comps' : 'dcf';
 
   const [defaults, setDefaults] = useState(null);
   const [defaultsLoading, setDefaultsLoading] = useState(true);
@@ -197,36 +200,64 @@ function Valuation() {
     setSubmitting(false);
   };
 
+  const tabs = (
+    <Tabs
+      items={[
+        { key: 'dcf', label: 'DCF', to: `/financials/${ticker}/valuation/dcf`, end: true },
+        { key: 'comps', label: 'Comps', to: `/financials/${ticker}/valuation/comps`, end: true },
+      ]}
+    />
+  );
+
+  if (activeSubtab === 'comps') {
+    return (
+      <div className="space-y-6">
+        {tabs}
+        <ComparableCompanies ticker={ticker} currency={currency} dcfResult={result} />
+      </div>
+    );
+  }
+
   if (defaultsLoading) {
     return (
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Skeleton variant="card" count={1} />
-        <Skeleton variant="card" count={1} />
+      <div className="space-y-6">
+        {tabs}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <Skeleton variant="card" count={1} />
+          <Skeleton variant="card" count={1} />
+        </div>
       </div>
     );
   }
 
   if (defaultsError) {
     return (
-      <ErrorState
-        title="Couldn't load valuation data"
-        message={`${defaultsError} Import financial statements for ${ticker?.toUpperCase()} before running a DCF valuation.`}
-      />
+      <div className="space-y-6">
+        {tabs}
+        <ErrorState
+          title="Couldn't load valuation data"
+          message={`${defaultsError} Import financial statements for ${ticker?.toUpperCase()} before running a DCF valuation.`}
+        />
+      </div>
     );
   }
 
   if (!defaults) {
     return (
-      <EmptyState
-        icon={Calculator}
-        title="No valuation data available"
-        message={`No financial data is available for ${ticker?.toUpperCase()} yet.`}
-      />
+      <div className="space-y-6">
+        {tabs}
+        <EmptyState
+          icon={Calculator}
+          title="No valuation data available"
+          message={`No financial data is available for ${ticker?.toUpperCase()} yet.`}
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {tabs}
       <div>
         <h2 className="text-xl font-bold tracking-tight text-ink">DCF Valuation</h2>
         <p className="mt-1 text-sm text-ink-muted">

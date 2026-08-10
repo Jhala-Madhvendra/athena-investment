@@ -1,0 +1,31 @@
+# Engineering Concept: Outlier & Invalid-Observation Handling
+
+## What it is
+
+Outlier handling in Athena's Comps engine isn't a statistical outlier-detection algorithm — it's a deliberately simpler, more conservative rule: a multiple is either **economically meaningful** (its denominator is a positive, finite number) or it is **excluded**, with a specific, human-readable reason attached. There is no "this number looks unusually large, flag it" heuristic anywhere in the code; the exclusion rule is purely about whether the underlying denominator makes the ratio meaningful at all.
+
+## Why we use it
+
+A P/E ratio for a loss-making company isn't a statistical outlier that happens to be extreme — it's not a real number at all in any useful sense (negative earnings inverted into a "P/E" produces a value with the wrong sign relative to what P/E is supposed to communicate). The correct engineering response to "this input makes the formula meaningless" is to refuse to produce a value, not to produce one and hope downstream statistics dilute its effect. Athena draws this line at the formula level, before the number ever has a chance to reach an aggregation step.
+
+## Alternatives considered
+
+- **Compute the multiple regardless of sign, and let statistical aggregation (median, trimmed mean) absorb the distortion.** Rejected — this is exactly the "fabricate a value" behavior the sprint brief explicitly forbids (*"Do not convert negative earnings into an artificial positive P/E"*). A median is robust to *legitimate* variation between comparable companies; it is not a substitute for correctness, and a negative-earnings P/E isn't a legitimate observation to begin with.
+- **Statistical outlier detection** (e.g., exclude observations more than N standard deviations from the mean, or outside 1.5× IQR). Rejected for this domain — a genuinely high multiple (a fast-growing, richly-valued peer) is not an error to be filtered out; it's real information, and Athena's job is to represent that spread (via Min/Max/P25/P75), not to statistically launder it away. The *only* thing Athena excludes is a value that is not economically meaningful in the first place — a categorically different judgment from "this number is far from the others."
+- **Clamp negative/undefined multiples to zero or some floor value.** Rejected — clamping fabricates a number that looks like real data but isn't, which is strictly worse for a user than an explicit `null` with a stated reason.
+
+## Trade-offs
+
+**For "exclude and explain, never fabricate":** every excluded observation is traceable — `comps.engine.js`'s `buildExclusionReason()` produces a specific sentence ("Net Income is zero or negative - this multiple is not meaningful for this company.") rather than a bare `null`, so both the peer comparison table and the peer statistics panel can show *why* a cell reads "—" instead of a number, satisfying the sprint brief's requirement that missing data never look like an unexplained gap.
+
+**Against it:** a peer group where every peer happens to be loss-making will produce zero valid P/E observations, and the UI has to handle "no valid statistic exists for this multiple" as a real, expected state (`comps.statistics.js`'s `summarize([])` returning an all-`null` shape, and `comps.valuation.js`'s `calculateImpliedValuation()` returning `isApplicable: false`) rather than assuming at least one peer will always be usable.
+
+## How Athena implements it
+
+Exclusion is decided in two places for two different reasons. `comps.formulas.js`'s individual multiple functions (`priceToEarnings()`, `evToEbitda()`, etc.) all route through `safeDivide()`, which returns `null` whenever the denominator isn't `isFiniteNumber(denominator) && denominator > 0` — this is the actual, load-bearing exclusion rule. Separately, `comps.engine.js`'s `buildExclusionReason()` re-derives *why* a `null` occurred (missing input vs. zero-or-negative vs. Enterprise Value itself being uncomputable) purely for the human-readable message — it doesn't change what gets excluded, only explains it. This split exists because the formula layer's job is "is this valid, yes or no" (a single boolean-shaped decision, testable with a handful of cases), while the explanation layer's job is "which specific sentence does a user see" (a UX concern that can grow more detailed over time without touching the actual math).
+
+## Interview questions
+
+1. *"Why doesn't Athena use standard deviation or IQR-based outlier filtering for peer multiples?"* — Because a high-but-legitimate multiple (a fast-growing peer the market is willing to pay more for) isn't an error — it's exactly the kind of real variation the statistics (median, P25/P75) are supposed to surface, not hide. Athena only excludes observations that are *not economically meaningful in the first place* (negative earnings, negative EBITDA, zero revenue) — a categorically different, much narrower rule than statistical outlier detection.
+2. *"A peer has slightly negative EBITDA — one dollar in the red. Why exclude it entirely instead of just noting it's a low multiple?"* — Because EV/EBITDA with a near-zero-or-negative denominator doesn't degrade gracefully — as EBITDA approaches zero from either side, the ratio blows up toward positive or negative infinity, and a small change in EBITDA (rounding, timing) can flip its sign entirely. There's no meaningful "low EV/EBITDA" reading in that neighborhood; excluding it outright, at exactly the sign boundary, is more honest than reporting a wildly unstable number.
+3. *"Where would a genuinely bad *peer selection* (not a bad individual multiple) show up in Athena's data, and how would a user know?"* — Athena's outlier handling only catches individually non-meaningful multiples, never a legitimately-computed multiple that's simply "wrong" because the peer itself is a poor comparable (see `research/finance/PeerSelection.md`). That case shows up as unusual dispersion in the Min/Max/P25/P75 spread the peer statistics table already displays — a wide gap between P25 and P75, or between the median and the min/max, is the signal a user should read as "reconsider this peer group," since Athena has no code path that would flag it automatically.

@@ -45,7 +45,7 @@ function AssumptionField({
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <label htmlFor={id} className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+        <label htmlFor={id} className="min-w-0 truncate text-xs font-semibold tracking-wide text-ink-muted uppercase" title={label}>
           {label}
         </label>
         {source && <SourceBadge source={source} />}

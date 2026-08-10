@@ -5,7 +5,9 @@ function LabeledStat({ label, entry }) {
   return (
     <div className="rounded-lg border border-border bg-surface-sunken p-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">{label}</p>
+        <p className="min-w-0 truncate text-xs font-semibold tracking-wide text-ink-muted uppercase" title={label}>
+          {label}
+        </p>
         <SourceBadge source={entry?.source} />
       </div>
       <p className="mt-2 text-xl font-bold tabular-nums text-ink">

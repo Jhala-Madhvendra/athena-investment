@@ -44,3 +44,15 @@ const enterpriseValue = (pvOfForecastFCFF, pvOfTerminalValue) => pvOfForecastFCF
 ## 9. Interview questions
 
 *"If two companies have identical Enterprise Values but very different debt loads, do they have the same Equity Value?"* — No — EV is capital-structure-neutral by design, but Equity Value is EV minus net debt, so the more indebted company will have a materially lower Equity Value (and thus lower value per share, all else equal) despite an identical Enterprise Value. This is exactly why EV is the right basis for comparing the *operating businesses* of differently-levered companies, while Equity Value/share price comparisons need the leverage difference accounted for separately.
+
+## 10. Sprint 7 addendum: a second way Athena computes Enterprise Value
+
+Sections 1-9 above describe EV as DCF computes it — the sum of discounted future cash flows. Since Sprint 7, Athena also computes Enterprise Value a second, entirely different way for Comparable Company Analysis: **from today's market data, not a forecast.**
+
+```
+EV (Comps) = Market Cap + Total Debt − Cash & Cash Equivalents
+```
+
+(`backend/valuation/comps/comps.formulas.js`'s `enterpriseValue()` — deliberately a different function, with a different signature, from `dcf.formulas.js`'s same-named `enterpriseValue()`, since they answer different questions with different inputs.) DCF's EV asks "what does this business's *future* cash generation imply it's worth"; Comps' EV asks "what is the market *currently* saying it's worth, given today's share price plus its capital structure." The two will rarely be identical for any real company, and that gap is itself part of the DCF-vs-Comps comparison Athena presents (see `research/finance/ComparableCompanyAnalysis.md`) — it is not a bug to reconcile.
+
+Comps' EV feeds directly into `EV/EBITDA` and `EV/Revenue` (see `EVEBITDA.md`, `EVRevenue.md`), and — going the other direction — a peer-derived multiple's *Implied* Enterprise Value is bridged back to Implied Equity Value using the exact same `Equity Value = Enterprise Value − Net Debt` relationship `EquityValue.md` describes (`dcf.formulas.js`'s `netDebt()`/`equityValue()`, reused rather than re-implemented — see `EquityValue.md`'s Sprint 7 addendum and `research/finance/ValuationMultiples.md`).

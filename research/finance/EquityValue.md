@@ -45,3 +45,14 @@ Both `totalDebt` and `cashAndEquivalents` come from the company's latest stored 
 ## 8. Interview questions
 
 *"A company has an Enterprise Value of $1.5B, $400M of debt, and $600M of cash. What's its Equity Value, and what does the direction of that adjustment tell you?"* — Net Debt = $400M − $600M = −$200M (a net cash position), so Equity Value = $1.5B − (−$200M) = $1.7B — *higher* than Enterprise Value. The direction makes sense: the company's cash pile belongs to shareholders outright and isn't offset by enough debt to matter, so equity holders' claim is worth more than the "pure operating business" value alone.
+
+## 9. Sprint 7 addendum: the same bridge, reused for Comps
+
+Sections 1-8 above describe Equity Value as the endpoint of a DCF. Since Sprint 7, the exact same `netDebt()`/`equityValue()` functions from `dcf.formulas.js` are reused — imported directly, not reimplemented — by `backend/valuation/comps/comps.valuation.js` to bridge a Comps **enterprise multiple's** (EV/EBITDA, EV/Revenue) Implied Enterprise Value to an Implied Equity Value:
+
+```js
+const netDebtValue = dcfFormulas.netDebt(targetMetrics.debt, targetMetrics.cash);
+const impliedEquityValue = dcfFormulas.equityValue(impliedEnterpriseValue, netDebtValue);
+```
+
+This is the same relationship regardless of *how* Enterprise Value was produced — summed discounted cash flows (DCF) or a peer multiple applied to EBITDA/Revenue (Comps) — so Athena reuses one function rather than maintaining two copies of the same formula that could silently drift apart. Equity multiples (P/E, P/B, P/S) never touch this bridge at all — they produce Implied Equity Value directly (see `research/finance/ValuationMultiples.md`).

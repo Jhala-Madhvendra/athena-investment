@@ -40,6 +40,42 @@ export function mockDashboardFetch(responses) {
 export const errorResponse = (status, message) => ({ __error: true, status, body: { message } });
 
 /**
+ * Routes a mocked global.fetch for the Comparable Companies tab's
+ * endpoints. Checked most-specific first, since `/available-peers/live-search`
+ * contains `/available-peers`, which in turn contains the generic `/comps`.
+ *
+ * @param {object} responses - { availablePeers, liveSearch, comps, financialsImport }
+ *   Each value is either a JSON body (200 OK) or { status, body } for an
+ *   error (see errorResponse). `undefined` leaves that endpoint hanging.
+ *   `financialsImport` covers the "Import Financials" action on an
+ *   unavailable peer (POST /api/financials/import/:ticker).
+ */
+export function mockCompsFetch(responses) {
+  const resolveFor = (url) => {
+    if (url.includes('/api/financials/import/')) return responses.financialsImport;
+    if (url.includes('/comps/available-peers/live-search')) return responses.liveSearch;
+    if (url.includes('/comps/available-peers')) return responses.availablePeers;
+    if (url.includes('/comps')) return responses.comps;
+    throw new Error(`mockCompsFetch: no mock registered for ${url}`);
+  };
+
+  globalThis.fetch = vi.fn((url) => {
+    // A response may be a function of the full URL (including query string) rather than a
+    // fixed body, so a single endpoint can return different results for different queries -
+    // e.g. an empty candidate list only when `?q=` is present, to exercise the live-search fallback.
+    const resolved = resolveFor(url);
+    const entry = typeof resolved === 'function' ? resolved(url) : resolved;
+    if (entry === undefined) {
+      return new Promise(() => {}); // never resolves - simulates still-loading
+    }
+    if (entry && entry.__error) {
+      return Promise.resolve(jsonResponse(entry.status ?? 500, entry.body ?? { message: 'Request failed.' }));
+    }
+    return Promise.resolve(jsonResponse(200, entry));
+  });
+}
+
+/**
  * Routes a mocked global.fetch for the DCF Valuation tab's four endpoints.
  * Distinguished by URL suffix, most-specific first, since /dcf/scenarios
  * and /dcf/sensitivity both contain "/dcf".

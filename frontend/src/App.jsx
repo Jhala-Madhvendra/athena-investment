@@ -40,7 +40,8 @@ function App() {
                 <Route path="business-analysis" element={<Navigate to="overview" replace />} />
                 <Route path="business-analysis/:subtab" element={<BusinessAnalysis />} />
                 <Route path="market-intelligence" element={<MarketIntelligence />} />
-                <Route path="valuation" element={<Valuation />} />
+                <Route path="valuation" element={<Navigate to="dcf" replace />} />
+                <Route path="valuation/:subtab" element={<Valuation />} />
               </Route>
               <Route path="*" element={<Navigate to="/financials/AAPL/overview" replace />} />
             </Routes>

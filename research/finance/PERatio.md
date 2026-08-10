@@ -39,3 +39,16 @@ Shown in the Market Snapshot section (`valuation.peRatio`, `valuation.forwardPE`
 - A company with temporarily depressed earnings (e.g. due to a one-off charge) will show an inflated P/E that doesn't reflect its normal earnings power.
 - A company with no reported earnings (net loss) will show no meaningful trailing P/E at all - Athena returns `null` in this case rather than a fabricated or misleading number.
 - Comparing P/E across industries with very different capital intensity or growth profiles (e.g. a bank vs. a software company) is rarely a fair comparison.
+
+## 8. Sprint 7 addendum: a second, distinct P/E in Comparable Company Analysis
+
+Since Sprint 7, Athena computes a **second P/E figure** that is deliberately not the same value, or the same computation, as the one described above - the two coexist for different purposes:
+
+| | This doc's P/E (Sprint 4) | Comps' P/E (Sprint 7) |
+|---|---|---|
+| Source | Sourced directly from Yahoo's `summaryDetail.trailingPE` | Computed by Athena: `Market Cap / Net Income` (`comps.formulas.js`'s `priceToEarnings()`) |
+| Uses | Trailing twelve-month EPS (Yahoo's own definition) | Athena's own stored latest-reported-year Net Income |
+| Purpose | A market snapshot metric, shown standalone | A trading multiple, aggregated across a peer group and applied to a target's Net Income to produce an Implied Value Per Share |
+| Negative earnings | Not applicable/returned by Yahoo | Explicitly excluded (`null`), see `research/finance/OutlierHandling.md` |
+
+Both are legitimate P/E figures and will usually be close but not identical (different EPS/Net-Income time windows, different share-count conventions). Athena keeps them as two separate code paths rather than one shared "the P/E" value specifically so a Comps calculation - which needs Athena's own consistent Net-Income figure to aggregate correctly across a peer group - never silently depends on a third-party snapshot metric that isn't guaranteed to use the same fiscal period as Athena's stored financials. See `research/finance/ComparableCompanyAnalysis.md` for how the Comps P/E is used, and `research/finance/ValuationMultiples.md` for why P/E is an **equity** multiple (never bridged through Enterprise Value).
