@@ -1,4 +1,5 @@
 const FinancialStatementsProvider = require("./financialStatementsProvider");
+const fetchWithTimeout = require("../../utils/fetchWithTimeout");
 
 class YahooFinanceProvider extends FinancialStatementsProvider {
     async getAnnualFinancialStatements(ticker) {
@@ -14,7 +15,7 @@ class YahooFinanceProvider extends FinancialStatementsProvider {
         url.searchParams.set("period2", String(Math.floor(Date.now() / 1000)));
         url.searchParams.set("crumb", crumb);
 
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
             headers: {
                 "User-Agent": "Mozilla/5.0 AthenaFinance/1.0",
                 Accept: "application/json",
@@ -48,7 +49,7 @@ class YahooFinanceProvider extends FinancialStatementsProvider {
         const headers = {
             "User-Agent": "Mozilla/5.0 AthenaFinance/1.0",
         };
-        const cookieResponse = await fetch("https://fc.yahoo.com", {
+        const cookieResponse = await fetchWithTimeout("https://fc.yahoo.com", {
             headers,
             redirect: "manual",
         });
@@ -61,7 +62,7 @@ class YahooFinanceProvider extends FinancialStatementsProvider {
             throw new Error("Yahoo Finance authentication cookie could not be retrieved.");
         }
 
-        const crumbResponse = await fetch(
+        const crumbResponse = await fetchWithTimeout(
             "https://query1.finance.yahoo.com/v1/test/getcrumb",
             { headers: { ...headers, Cookie: cookie } }
         );

@@ -1,6 +1,12 @@
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config();
+const helmet = require("helmet");
+const pinoHttp = require("pino-http");
+
+const env = require("./config/env");
+const logger = require("./utils/logger");
+const { sendServiceError } = require("./utils/httpErrors");
+const { generalLimiter } = require("./middleware/rateLimit");
 
 const app = express();
 const connectDB = require("./config/db");
@@ -13,8 +19,38 @@ const valuationRoutes = require("./valuation/valuation.routes");
 
 connectDB();
 
-app.use(cors());
-app.use(express.json());
+app.use(helmet());
+
+const isAllowedOrigin = (origin) => {
+    if (!origin) return true; // same-origin / server-to-server / curl requests carry no Origin header
+    if (env.frontendOrigins.length > 0) return env.frontendOrigins.includes(origin);
+    return !env.isProduction; // dev fallback: allow any origin only outside production
+};
+
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            if (isAllowedOrigin(origin)) {
+                return callback(null, true);
+            }
+            return callback(new Error("Not allowed by CORS"));
+        },
+        methods: ["GET", "POST"],
+        credentials: false,
+    })
+);
+
+app.use(pinoHttp({ logger }));
+app.use(express.json({ limit: "100kb" }));
+app.use(generalLimiter);
+
+app.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/", (req, res) => {
+    res.send("Backend Running...");
+});
 
 app.use("/api/company", companyRoutes);
 app.use("/api/financials", financialsRoutes);
@@ -23,20 +59,27 @@ app.use("/api/analysis", analysisRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/valuation", valuationRoutes);
 
-app.get("/", (req, res) => {
-    res.send("Backend Running...");
-});
-
 app.use((err, req, res, next) => {
-    const statusCode = err.statusCode || 500;
-    res.status(statusCode).json({
-        message: err.message || "Internal Server Error",
-        ...(err.errors ? { errors: err.errors } : {}),
-    });
+    const fallbackStatusCode = err.message === "Not allowed by CORS" ? 403 : 500;
+    return sendServiceError(res, err, fallbackStatusCode);
 });
 
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+const server = app.listen(env.port, () => {
+    logger.info(`Server running on port ${env.port} (${env.nodeEnv})`);
 });
+
+// Guard against slow/stalled clients and connections holding sockets open.
+server.requestTimeout = 30_000;
+server.headersTimeout = 35_000;
+
+process.on("unhandledRejection", (reason) => {
+    logger.error({ err: reason }, "Unhandled promise rejection");
+    process.exit(1);
+});
+
+process.on("uncaughtException", (error) => {
+    logger.error({ err: error }, "Uncaught exception");
+    process.exit(1);
+});
+
+module.exports = server;

@@ -1,6 +1,7 @@
 const MarketDataProvider = require("./marketData.provider");
 const getYahooAuthentication = require("../../providers/yahoo/yahooAuth");
 const { mapYahooQuote, mapYahooHistoricalPrices } = require("../mappers/yahooMarketData.mapper");
+const fetchWithTimeout = require("../../utils/fetchWithTimeout");
 
 class YahooMarketDataProvider extends MarketDataProvider {
     async getQuote(ticker) {
@@ -13,7 +14,7 @@ class YahooMarketDataProvider extends MarketDataProvider {
         url.searchParams.set("modules", "price,summaryDetail,defaultKeyStatistics");
         url.searchParams.set("crumb", crumb);
 
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
             headers: {
                 "User-Agent": "Mozilla/5.0 AthenaFinance/1.0",
                 Accept: "application/json",
@@ -56,7 +57,7 @@ class YahooMarketDataProvider extends MarketDataProvider {
         url.searchParams.set("interval", "1d");
         url.searchParams.set("crumb", crumb);
 
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
             headers: {
                 "User-Agent": "Mozilla/5.0 AthenaFinance/1.0",
                 Accept: "application/json",

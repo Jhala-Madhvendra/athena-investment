@@ -1,8 +1,10 @@
+const fetchWithTimeout = require("../../utils/fetchWithTimeout");
+
 const getYahooAuthentication = async () => {
     const headers = {
         "User-Agent": "Mozilla/5.0 AthenaFinance/1.0",
     };
-    const cookieResponse = await fetch("https://fc.yahoo.com", {
+    const cookieResponse = await fetchWithTimeout("https://fc.yahoo.com", {
         headers,
         redirect: "manual",
     });
@@ -15,7 +17,7 @@ const getYahooAuthentication = async () => {
         throw new Error("Yahoo Finance authentication cookie could not be retrieved.");
     }
 
-    const crumbResponse = await fetch(
+    const crumbResponse = await fetchWithTimeout(
         "https://query1.finance.yahoo.com/v1/test/getcrumb",
         { headers: { ...headers, Cookie: cookie } }
     );

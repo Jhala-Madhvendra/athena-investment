@@ -5,6 +5,19 @@
 
 const analysisService = require('./analysis.service');
 const validator = require('./analysis.validator');
+const env = require('../config/env');
+const logger = require('../utils/logger');
+
+/**
+ * Logs the full error server-side and returns a client-safe message.
+ * Unexpected errors never leak internals to the client in production.
+ */
+const safeErrorMessage = (prefix, error) => {
+  logger.error({ err: error }, `${prefix}: ${error.message}`);
+  return env.isProduction
+    ? 'Something went wrong. Please try again.'
+    : `${prefix}: ${error.message}`;
+};
 
 /**
  * GET /api/analysis/:ticker
@@ -65,9 +78,8 @@ async function getAnalysis(req, res) {
 
     return res.status(200).json(analysis);
   } catch (error) {
-    console.error('Analysis controller error:', error);
     return res.status(500).json({
-      error: `Failed to generate analysis: ${error.message}`,
+      error: safeErrorMessage('Failed to generate analysis', error),
       status: 500
     });
   }
@@ -147,9 +159,8 @@ async function getAnalysisBatch(req, res) {
       errors: failed.length > 0 ? failed : undefined
     });
   } catch (error) {
-    console.error('Batch analysis controller error:', error);
     return res.status(500).json({
-      error: `Failed to generate batch analysis: ${error.message}`,
+      error: safeErrorMessage('Failed to generate batch analysis', error),
       status: 500
     });
   }
@@ -191,9 +202,8 @@ async function getTrends(req, res) {
       calculatedAt: analysis.calculatedAt
     });
   } catch (error) {
-    console.error('Trends controller error:', error);
     return res.status(500).json({
-      error: `Failed to retrieve trends: ${error.message}`
+      error: safeErrorMessage('Failed to retrieve trends', error)
     });
   }
 }
@@ -239,9 +249,8 @@ async function getInsights(req, res) {
       calculatedAt: analysis.calculatedAt
     });
   } catch (error) {
-    console.error('Insights controller error:', error);
     return res.status(500).json({
-      error: `Failed to retrieve insights: ${error.message}`
+      error: safeErrorMessage('Failed to retrieve insights', error)
     });
   }
 }
@@ -287,9 +296,8 @@ async function getHealthScore(req, res) {
       calculatedAt: analysis.calculatedAt
     });
   } catch (error) {
-    console.error('Health score controller error:', error);
     return res.status(500).json({
-      error: `Failed to retrieve health score: ${error.message}`
+      error: safeErrorMessage('Failed to retrieve health score', error)
     });
   }
 }
