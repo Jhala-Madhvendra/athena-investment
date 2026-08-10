@@ -1,6 +1,7 @@
 const FinancialDataProvider = require("../financialDataProvider");
 const mapYahooFinanceCompany = require("./yahooFinance.mapper");
 const fetchWithTimeout = require("../../utils/fetchWithTimeout");
+const getYahooAuthentication = require("./yahooAuth");
 
 class YahooFinanceProvider extends FinancialDataProvider {
     async getCompanyProfile(ticker) {
@@ -127,44 +128,7 @@ class YahooFinanceProvider extends FinancialDataProvider {
     }
 
     async getAuthentication() {
-        const headers = {
-            "User-Agent": "Mozilla/5.0 AthenaFinance/1.0",
-        };
-        const cookieResponse = await fetchWithTimeout("https://fc.yahoo.com", {
-            headers,
-            redirect: "manual",
-        });
-        const rawCookie = cookieResponse.headers.getSetCookie
-            ? cookieResponse.headers.getSetCookie()[0]
-            : cookieResponse.headers.get("set-cookie");
-        const cookie = rawCookie?.split(";")[0];
-
-        if (!cookie) {
-            throw new Error("Yahoo Finance authentication cookie could not be retrieved.");
-        }
-
-        const crumbResponse = await fetchWithTimeout(
-            "https://query1.finance.yahoo.com/v1/test/getcrumb",
-            { headers: { ...headers, Cookie: cookie } }
-        );
-
-        if (!crumbResponse.ok) {
-            const body = await crumbResponse.text().catch(() => "");
-
-            throw new Error(
-                `Yahoo Finance crumb request failed. ` +
-                `Status: ${crumbResponse.status}. ` +
-                `Body: ${body.slice(0, 500)}`
-            );
-        }
-
-        const crumb = await crumbResponse.text();
-
-        if (!crumb) {
-            throw new Error("Yahoo Finance returned an empty authentication crumb.");
-        }
-
-        return { cookie, crumb };
+        return getYahooAuthentication();
     }
 }
 
