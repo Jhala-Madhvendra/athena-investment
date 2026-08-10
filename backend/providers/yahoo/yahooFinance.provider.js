@@ -149,7 +149,13 @@ class YahooFinanceProvider extends FinancialDataProvider {
         );
 
         if (!crumbResponse.ok) {
-            throw new Error("Yahoo Finance authentication crumb could not be retrieved.");
+            const body = await crumbResponse.text().catch(() => "");
+
+            throw new Error(
+                `Yahoo Finance crumb request failed. ` +
+                `Status: ${crumbResponse.status}. ` +
+                `Body: ${body.slice(0, 500)}`
+            );
         }
 
         const crumb = await crumbResponse.text();
