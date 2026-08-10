@@ -1,4 +1,5 @@
 const YahooFinanceProvider = require("./yahooFinance.provider");
+const TwelveDataFinancialStatementsProvider = require("../../providers/twelvedata/twelveDataFinancialStatements.provider");
 
 const createFinancialStatementsProvider = () => {
     const providerName = (process.env.FINANCIAL_STATEMENTS_PROVIDER || "yahoo").toLowerCase();
@@ -6,6 +7,8 @@ const createFinancialStatementsProvider = () => {
     switch (providerName) {
         case "yahoo":
             return new YahooFinanceProvider();
+        case "twelvedata":
+            return new TwelveDataFinancialStatementsProvider();
         default:
             throw new Error(`Unsupported financial statements provider: ${providerName}`);
     }

@@ -1,6 +1,7 @@
 const FinancialStatementsProvider = require("./financialStatementsProvider");
 const fetchWithTimeout = require("../../utils/fetchWithTimeout");
 const getYahooAuthentication = require("../../providers/yahoo/yahooAuth");
+const mapYahooFinanceFinancials = require("../mappers/yahooFinanceFinancials.mapper");
 
 class YahooFinanceProvider extends FinancialStatementsProvider {
     async getAnnualFinancialStatements(ticker) {
@@ -43,7 +44,7 @@ class YahooFinanceProvider extends FinancialStatementsProvider {
             throw new Error(`Yahoo Finance returned no financial statements for ${normalizedTicker}.`);
         }
 
-        return yahooResponse;
+        return mapYahooFinanceFinancials(yahooResponse, normalizedTicker);
     }
 
     async getAuthentication() {

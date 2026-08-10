@@ -105,7 +105,7 @@ const refreshHistoricalPrices = async (normalizedTicker, companyId) => {
         bars.map((bar) =>
             MarketHistory.findOneAndUpdate(
                 { ticker: normalizedTicker, date: bar.date },
-                { ...bar, ticker: normalizedTicker, companyId, source: "yahoo" },
+                { ...bar, ticker: normalizedTicker, companyId, source: process.env.MARKET_DATA_PROVIDER || "yahoo" },
                 { upsert: true, runValidators: true }
             )
         )

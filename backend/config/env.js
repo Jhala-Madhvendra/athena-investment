@@ -24,6 +24,10 @@ const env = {
     rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
     rateLimitMax: Number(process.env.RATE_LIMIT_MAX) || 300,
     externalApiTimeoutMs: Number(process.env.EXTERNAL_API_TIMEOUT_MS) || 10000,
+    financialDataProvider: (process.env.FINANCIAL_DATA_PROVIDER || "yahoo").toLowerCase(),
+    financialStatementsProvider: (process.env.FINANCIAL_STATEMENTS_PROVIDER || "yahoo").toLowerCase(),
+    marketDataProvider: (process.env.MARKET_DATA_PROVIDER || "yahoo").toLowerCase(),
+    twelveDataApiKey: process.env.TWELVE_DATA_API_KEY || null,
 };
 
 if (env.isProduction && env.frontendOrigins.length === 0) {

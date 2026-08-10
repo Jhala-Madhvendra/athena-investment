@@ -1,7 +1,6 @@
 const Company = require("../models/company.model");
 const FinancialStatement = require("./financials.model");
 const financialStatementsProvider = require("./providers/financialStatementsProvider.registry");
-const mapYahooFinanceFinancials = require("./mappers/yahooFinanceFinancials.mapper");
 const validateFinancialStatement = require("./validators/financialStatements.validator");
 
 class CompanyNotFoundError extends Error {
@@ -36,11 +35,7 @@ const findCompanyByTicker = async (ticker) => {
 const importFinancialStatements = async (ticker) => {
     const normalizedTicker = normalizeTicker(ticker);
     const company = await findCompanyByTicker(normalizedTicker);
-    const rawFinancialStatements = await financialStatementsProvider.getAnnualFinancialStatements(
-        normalizedTicker
-    );
-    const normalizedStatements = mapYahooFinanceFinancials(
-        rawFinancialStatements,
+    const normalizedStatements = await financialStatementsProvider.getAnnualFinancialStatements(
         normalizedTicker
     );
 
