@@ -9,6 +9,7 @@ import BusinessAnalysis from './components/BusinessAnalysis'
 import MarketIntelligence from './components/MarketIntelligence'
 import Overview from './components/Overview'
 import Valuation from './components/Valuation'
+import AIResearch from './components/AIResearch'
 
 /** Backward-compat redirect for the old flat statement URLs (pre-Sprint-5). */
 function RedirectToStatement({ subtab }) {
@@ -42,6 +43,7 @@ function App() {
                 <Route path="market-intelligence" element={<MarketIntelligence />} />
                 <Route path="valuation" element={<Navigate to="dcf" replace />} />
                 <Route path="valuation/:subtab" element={<Valuation />} />
+                <Route path="ai-research" element={<AIResearch />} />
               </Route>
               <Route path="*" element={<Navigate to="/financials/AAPL/overview" replace />} />
             </Routes>

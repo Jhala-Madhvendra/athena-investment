@@ -26,16 +26,25 @@ const twelveDataGet = async (path, params = {}) => {
     const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
 
     if (!response.ok) {
-        throw new Error(`Twelve Data request to ${path} failed with status ${response.status}.`);
+        const error = new Error(`Twelve Data request to ${path} failed with status ${response.status}.`);
+        error.twelveDataStatus = response.status;
+        throw error;
     }
 
     const body = await response.json();
 
     if (body?.status === "error" || body?.code >= 400) {
-        throw new Error(`Twelve Data could not resolve the request to ${path}.`);
+        const error = new Error(`Twelve Data could not resolve the request to ${path}.`);
+        error.twelveDataStatus = body?.code;
+        throw error;
     }
 
     return body;
 };
 
-module.exports = { twelveDataGet };
+// Callers use this to tell "genuinely not found" apart from "temporarily
+// unavailable" (rate limit) - conflating the two turns a transient 429 into
+// a misleading "this company doesn't exist" error further up the stack.
+const isRateLimitError = (error) => error?.twelveDataStatus === 429;
+
+module.exports = { twelveDataGet, isRateLimitError };

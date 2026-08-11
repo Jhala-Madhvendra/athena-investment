@@ -7,6 +7,7 @@ import {
   Activity,
   LineChart,
   Calculator,
+  Sparkles,
   Search,
   Loader2,
   X,
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { key: 'business-analysis', label: 'Business Analysis', to: 'business-analysis/overview', icon: Activity },
   { key: 'market-intelligence', label: 'Market Intelligence', to: 'market-intelligence', icon: LineChart },
   { key: 'valuation', label: 'Valuation', to: 'valuation', icon: Calculator },
+  { key: 'ai-research', label: 'AI Research', to: 'ai-research', icon: Sparkles },
 ];
 
 /**

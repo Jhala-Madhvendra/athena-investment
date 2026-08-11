@@ -16,6 +16,7 @@ const ratioRoutes = require("./ratio/ratio.routes");
 const analysisRoutes = require("./analysis/analysis.routes");
 const marketRoutes = require("./market/market.routes");
 const valuationRoutes = require("./valuation/valuation.routes");
+const aiRoutes = require("./ai/ai.routes");
 
 connectDB();
 
@@ -58,6 +59,7 @@ app.use("/api/ratios", ratioRoutes);
 app.use("/api/analysis", analysisRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/valuation", valuationRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.use((err, req, res, next) => {
     const fallbackStatusCode = err.message === "Not allowed by CORS" ? 403 : 500;
@@ -69,8 +71,11 @@ const server = app.listen(env.port, () => {
 });
 
 // Guard against slow/stalled clients and connections holding sockets open.
-server.requestTimeout = 30_000;
-server.headersTimeout = 35_000;
+// Kept above env.aiRequestTimeoutMs (see config/env.js) so a slow LLM
+// provider's own clean timeout error can fire before Express kills the
+// connection first with a generic one.
+server.requestTimeout = 95_000;
+server.headersTimeout = 100_000;
 
 process.on("unhandledRejection", (reason) => {
     logger.error({ err: reason }, "Unhandled promise rejection");

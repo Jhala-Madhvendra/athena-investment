@@ -12,7 +12,9 @@ const fetchWithTimeout = async (resource, options = {}, timeoutMs = env.external
         return await fetch(resource, { ...options, signal: controller.signal });
     } catch (error) {
         if (error.name === "AbortError") {
-            throw new Error("The upstream financial data provider timed out. Please try again.");
+            const timeoutError = new Error("The upstream provider timed out. Please try again.");
+            timeoutError.isTimeout = true;
+            throw timeoutError;
         }
         throw error;
     } finally {

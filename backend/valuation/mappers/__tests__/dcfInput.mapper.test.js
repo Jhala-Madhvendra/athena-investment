@@ -134,3 +134,90 @@ describe("buildDefaults", () => {
         expect(defaults.suggestedAssumptions.capexPercentRevenue.value).toBeGreaterThan(0);
     });
 });
+
+describe("buildDefaults - latest-year-missing-a-field fallback", () => {
+    // Regression coverage for a real production bug: AAPL's latest stored
+    // year had capitalExpenditure: null (a still-partially-reported recent
+    // filing) while every prior year had real data - the DCF used to go
+    // straight to "unavailable" instead of falling back to the most recent
+    // complete year, which needlessly blocked both the interactive DCF tool
+    // and the AI Research report for a ticker Athena actually has good
+    // historical data for.
+    const priorYear = buildStatement(2022);
+    const latestYearMissingCapex = buildStatement(2023, {
+        cashFlow: { capitalExpenditure: null, depreciationAndAmortization: 60 },
+    });
+    const twoYearsWithLatestIncomplete = [priorYear, latestYearMissingCapex];
+
+    beforeEach(() => {
+        riskFreeRateProvider.getRiskFreeRate.mockResolvedValue(0.04);
+    });
+
+    it("falls back to the most recent complete year for CapEx when the latest year's is null", async () => {
+        const defaults = await dcfInputMapper.buildDefaults({
+            ticker: "AAPL",
+            statements: twoYearsWithLatestIncomplete,
+            latestStatement: latestYearMissingCapex,
+            quote,
+        });
+
+        expect(defaults.suggestedAssumptions.capexPercentRevenue.source).toBe("derived");
+        expect(defaults.suggestedAssumptions.capexPercentRevenue.value).toBeGreaterThan(0);
+        expect(defaults.suggestedAssumptions.capexPercentRevenue.note).toContain("2022");
+        expect(defaults.suggestedAssumptions.capexPercentRevenue.note).toMatch(/unavailable|instead/i);
+    });
+
+    it("still returns unavailable (never fabricates) when no year at all has usable CapEx", async () => {
+        const noYearHasCapex = [
+            buildStatement(2022, { cashFlow: { capitalExpenditure: null, depreciationAndAmortization: 60 } }),
+            buildStatement(2023, { cashFlow: { capitalExpenditure: null, depreciationAndAmortization: 60 } }),
+        ];
+
+        const defaults = await dcfInputMapper.buildDefaults({
+            ticker: "AAPL",
+            statements: noYearHasCapex,
+            latestStatement: noYearHasCapex[1],
+            quote,
+        });
+
+        expect(defaults.suggestedAssumptions.capexPercentRevenue).toEqual({
+            value: null,
+            source: "unavailable",
+            note: expect.any(String),
+        });
+    });
+
+    it("does not fall back (uses the latest year directly) when the latest year's data is complete", async () => {
+        const defaults = await dcfInputMapper.buildDefaults({ ticker: "AAPL", statements, latestStatement, quote });
+
+        expect(defaults.suggestedAssumptions.capexPercentRevenue.note).toContain(String(latestStatement.year));
+        expect(defaults.suggestedAssumptions.capexPercentRevenue.note).not.toMatch(/instead/i);
+    });
+
+    it("applies the same fallback to EBIT margin, tax rate, D&A%, and working capital% independently", async () => {
+        const latestYearMissingEverything = buildStatement(2023, {
+            incomeStatement: {
+                totalRevenue: 1000 + 2023 * 10,
+                operatingIncome: null,
+                pretaxIncome: null,
+                taxProvision: null,
+                netIncome: 150,
+                dilutedSharesOutstanding: 100,
+            },
+            balanceSheet: { cashAndCashEquivalents: 300, totalDebt: 400, currentAssets: null, currentLiabilities: null },
+            cashFlow: { capitalExpenditure: null, depreciationAndAmortization: null },
+        });
+
+        const defaults = await dcfInputMapper.buildDefaults({
+            ticker: "AAPL",
+            statements: [priorYear, latestYearMissingEverything],
+            latestStatement: latestYearMissingEverything,
+            quote,
+        });
+
+        ["ebitMargin", "taxRate", "depreciationPercentRevenue", "capexPercentRevenue", "workingCapitalPercentRevenue"].forEach((key) => {
+            expect(defaults.suggestedAssumptions[key].source).toBe("derived");
+            expect(defaults.suggestedAssumptions[key].note).toContain("2022");
+        });
+    });
+});

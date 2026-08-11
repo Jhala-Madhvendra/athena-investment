@@ -76,6 +76,45 @@ const ratioOf = (numerator, denominator) => {
     return ratio === null ? null : Number(ratio.toFixed(4));
 };
 
+/**
+ * Tries `computeValue` against each statement from most recent to oldest,
+ * returning the first year where it yields a usable value plus which year
+ * that was. A "latest year" suggestion (EBIT margin, tax rate, D&A%,
+ * CapEx%, working capital%) would otherwise go straight to "unavailable"
+ * just because the newest filing - which can still be partially reported -
+ * is missing one field, even when older years have real, complete data.
+ * Falling back to the most recent COMPLETE year is still genuine, reported
+ * company data, not a fabricated number - it's what an analyst would do by
+ * hand ("this year's figure isn't in yet, use last year's").
+ *
+ * @param {Array} sortedStatements - ascending by year
+ * @param {(statement: object) => number|null} computeValue
+ * @returns {{value: number, year: number} | null}
+ */
+const findMostRecentDerivable = (sortedStatements, computeValue) => {
+    for (let i = sortedStatements.length - 1; i >= 0; i -= 1) {
+        const statement = sortedStatements[i];
+        const value = computeValue(statement);
+        if (value !== null) {
+            return { value, year: statement.year };
+        }
+    }
+    return null;
+};
+
+/** Builds the labeled result for a "latest year, with fallback" suggestion - shared by every suggestX below except revenue growth (a multi-year CAGR, not a single-year snapshot). */
+const suggestWithFallback = (statements, latestStatement, computeValue, { unavailableNote, describeYear }) => {
+    const sorted = sortAscending(statements);
+    const found = findMostRecentDerivable(sorted, computeValue);
+
+    if (!found) {
+        return labeled(null, "unavailable", unavailableNote);
+    }
+
+    const isLatestYear = latestStatement && found.year === latestStatement.year;
+    return labeled(found.value, "derived", describeYear(found.year, isLatestYear));
+};
+
 const suggestRevenueGrowth = (statements) => {
     const sorted = sortAscending(statements);
 
@@ -99,39 +138,51 @@ const suggestRevenueGrowth = (statements) => {
     return labeled(Number(cagr.toFixed(4)), "derived", `${sorted.length}-year historical revenue CAGR (${first.year}-${last.year}).`);
 };
 
-const suggestEbitMargin = (latestStatement) => {
-    const value = ratioOf(latestStatement?.incomeStatement?.operatingIncome, latestStatement?.incomeStatement?.totalRevenue);
-    return value === null
-        ? labeled(null, "unavailable", "Latest-year operating income or revenue is missing.")
-        : labeled(value, "derived", `Latest reported year's (${latestStatement.year}) Operating Income / Revenue, used as an EBIT-margin proxy.`);
-};
-
-const suggestTaxRate = (latestStatement) => {
-    const rate = formulas.effectiveTaxRate(
-        latestStatement?.incomeStatement?.pretaxIncome,
-        latestStatement?.incomeStatement?.taxProvision
+const suggestEbitMargin = (statements, latestStatement) =>
+    suggestWithFallback(
+        statements,
+        latestStatement,
+        (statement) => ratioOf(statement?.incomeStatement?.operatingIncome, statement?.incomeStatement?.totalRevenue),
+        {
+            unavailableNote: "Operating income or revenue is not available for any reported year for this ticker.",
+            describeYear: (year, isLatestYear) =>
+                isLatestYear
+                    ? `Latest reported year's (${year}) Operating Income / Revenue, used as an EBIT-margin proxy.`
+                    : `Latest reported year's Operating Income or Revenue was unavailable - using the most recent complete year (${year}) Operating Income / Revenue instead.`,
+        }
     );
 
-    if (rate === null || rate < 0 || rate >= 1) {
-        return labeled(
-            null,
-            "unavailable",
-            "Latest-year effective tax rate is missing or outside a usable forecast range (e.g. a one-off tax benefit/charge distorted the reported rate). Enter a normalized rate."
-        );
-    }
-
-    return labeled(Number(rate.toFixed(4)), "derived", `Latest reported year's (${latestStatement.year}) Tax Provision / Pretax Income.`);
-};
-
-const suggestDaPercentRevenue = (latestStatement) => {
-    const value = ratioOf(
-        latestStatement?.cashFlow?.depreciationAndAmortization,
-        latestStatement?.incomeStatement?.totalRevenue
+const suggestTaxRate = (statements, latestStatement) =>
+    suggestWithFallback(
+        statements,
+        latestStatement,
+        (statement) => {
+            const rate = formulas.effectiveTaxRate(statement?.incomeStatement?.pretaxIncome, statement?.incomeStatement?.taxProvision);
+            return rate === null || rate < 0 || rate >= 1 ? null : Number(rate.toFixed(4));
+        },
+        {
+            unavailableNote:
+                "A usable effective tax rate (Tax Provision / Pretax Income, between 0 and 1) is not available for any reported year for this ticker. Enter a normalized rate.",
+            describeYear: (year, isLatestYear) =>
+                isLatestYear
+                    ? `Latest reported year's (${year}) Tax Provision / Pretax Income.`
+                    : `Latest reported year's tax rate was unavailable or outside a usable range (e.g. a one-off tax benefit/charge) - using the most recent complete year's (${year}) Tax Provision / Pretax Income instead.`,
+        }
     );
-    return value === null
-        ? labeled(null, "unavailable", "D&A is not available for the latest reported year for this ticker.")
-        : labeled(value, "derived", `Latest reported year's (${latestStatement.year}) D&A / Revenue.`);
-};
+
+const suggestDaPercentRevenue = (statements, latestStatement) =>
+    suggestWithFallback(
+        statements,
+        latestStatement,
+        (statement) => ratioOf(statement?.cashFlow?.depreciationAndAmortization, statement?.incomeStatement?.totalRevenue),
+        {
+            unavailableNote: "D&A is not available for any reported year for this ticker.",
+            describeYear: (year, isLatestYear) =>
+                isLatestYear
+                    ? `Latest reported year's (${year}) D&A / Revenue.`
+                    : `Latest reported year's D&A was unavailable - using the most recent complete year's (${year}) D&A / Revenue instead.`,
+        }
+    );
 
 /**
  * CapEx is stored as a negative outflow (standard cash-flow-statement sign,
@@ -141,25 +192,41 @@ const suggestDaPercentRevenue = (latestStatement) => {
  * - matching the same Math.abs() normalization dcf.engine.js applies to
  * historical CapEx.
  */
-const suggestCapexPercentRevenue = (latestStatement) => {
-    const rawCapex = latestStatement?.cashFlow?.capitalExpenditure;
-    const capexMagnitude = typeof rawCapex === "number" ? Math.abs(rawCapex) : null;
-    const value = ratioOf(capexMagnitude, latestStatement?.incomeStatement?.totalRevenue);
-    return value === null
-        ? labeled(null, "unavailable", "CapEx is not available for the latest reported year for this ticker.")
-        : labeled(value, "derived", `Latest reported year's (${latestStatement.year}) CapEx / Revenue.`);
-};
-
-const suggestWorkingCapitalPercentRevenue = (latestStatement) => {
-    const nwc = formulas.netWorkingCapital(
-        latestStatement?.balanceSheet?.currentAssets,
-        latestStatement?.balanceSheet?.currentLiabilities
+const suggestCapexPercentRevenue = (statements, latestStatement) =>
+    suggestWithFallback(
+        statements,
+        latestStatement,
+        (statement) => {
+            const rawCapex = statement?.cashFlow?.capitalExpenditure;
+            const capexMagnitude = typeof rawCapex === "number" ? Math.abs(rawCapex) : null;
+            return ratioOf(capexMagnitude, statement?.incomeStatement?.totalRevenue);
+        },
+        {
+            unavailableNote: "CapEx is not available for any reported year for this ticker.",
+            describeYear: (year, isLatestYear) =>
+                isLatestYear
+                    ? `Latest reported year's (${year}) CapEx / Revenue.`
+                    : `Latest reported year's CapEx was unavailable (a still-incomplete recent filing) - using the most recent complete year's (${year}) CapEx / Revenue instead.`,
+        }
     );
-    const value = ratioOf(nwc, latestStatement?.incomeStatement?.totalRevenue);
-    return value === null
-        ? labeled(null, "unavailable", "Current assets/liabilities are not available for the latest reported year for this ticker.")
-        : labeled(value, "derived", `(Current Assets - Current Liabilities) / Revenue for the latest reported year (${latestStatement.year}).`);
-};
+
+const suggestWorkingCapitalPercentRevenue = (statements, latestStatement) =>
+    suggestWithFallback(
+        statements,
+        latestStatement,
+        (statement) =>
+            ratioOf(
+                formulas.netWorkingCapital(statement?.balanceSheet?.currentAssets, statement?.balanceSheet?.currentLiabilities),
+                statement?.incomeStatement?.totalRevenue
+            ),
+        {
+            unavailableNote: "Current assets/liabilities are not available for any reported year for this ticker.",
+            describeYear: (year, isLatestYear) =>
+                isLatestYear
+                    ? `(Current Assets - Current Liabilities) / Revenue for the latest reported year (${year}).`
+                    : `Latest reported year's current assets/liabilities were unavailable - using (Current Assets - Current Liabilities) / Revenue for the most recent complete year (${year}) instead.`,
+        }
+    );
 
 /** Builds the full GET /:ticker/dcf/defaults response. */
 const buildDefaults = async ({ ticker, statements, latestStatement, quote }) => {
@@ -172,11 +239,11 @@ const buildDefaults = async ({ ticker, statements, latestStatement, quote }) => 
         suggestedAssumptions: {
             forecastYears: labeled(5, "default", "Sprint-standard 5-year explicit forecast period."),
             revenueGrowth: suggestRevenueGrowth(statements),
-            ebitMargin: suggestEbitMargin(latestStatement),
-            taxRate: suggestTaxRate(latestStatement),
-            depreciationPercentRevenue: suggestDaPercentRevenue(latestStatement),
-            capexPercentRevenue: suggestCapexPercentRevenue(latestStatement),
-            workingCapitalPercentRevenue: suggestWorkingCapitalPercentRevenue(latestStatement),
+            ebitMargin: suggestEbitMargin(statements, latestStatement),
+            taxRate: suggestTaxRate(statements, latestStatement),
+            depreciationPercentRevenue: suggestDaPercentRevenue(statements, latestStatement),
+            capexPercentRevenue: suggestCapexPercentRevenue(statements, latestStatement),
+            workingCapitalPercentRevenue: suggestWorkingCapitalPercentRevenue(statements, latestStatement),
             terminalGrowthRate: labeled(
                 ILLUSTRATIVE_TERMINAL_GROWTH_RATE,
                 "illustrative_default",

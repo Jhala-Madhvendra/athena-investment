@@ -1,0 +1,30 @@
+export const aiReportFixture = {
+  ticker: 'AAPL',
+  contextVersion: 'v1',
+  provider: 'anthropic',
+  model: 'claude-sonnet-5',
+  report: {
+    executiveSummary: 'Athena analysis indicates a strong, growing business trading above its DCF intrinsic value.',
+    companyOverview: 'Apple Inc. operates in the Technology sector on NASDAQ.',
+    businessPerformance: 'Revenue grew at a 7.8% CAGR over five years.',
+    financialHealth: 'The overall health score of 78 reflects strong profitability.',
+    marketPerformance: 'The stock trades at a P/E of 34.2.',
+    valuation: 'The DCF model suggests the market price exceeds intrinsic value.',
+    strengths: ['Consistent revenue growth', 'Strong free cash flow'],
+    risks: ['Elevated valuation multiple'],
+    considerations: ['Peer set was auto-selected, not manually reviewed'],
+    dataGaps: ['Comparable peers were not manually vetted'],
+    conclusion: 'Investors may want to investigate the valuation gap further.',
+  },
+  sectionEvidence: {
+    executiveSummary: ['analysis.healthScore.overall', 'dcf.intrinsicValuePerShare'],
+    valuation: ['dcf.upsideDownsidePercent'],
+  },
+  contextSnapshot: { ticker: 'AAPL' },
+  dataFreshness: {
+    marketDataAsOf: '2026-08-11T09:30:00.000Z',
+    financialDataPeriod: { startYear: 2020, endYear: 2024 },
+    dcfCalculatedAt: '2026-08-11T10:00:00.000Z',
+  },
+  generatedAt: '2026-08-11T10:00:00.000Z',
+};

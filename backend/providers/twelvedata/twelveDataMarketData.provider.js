@@ -1,5 +1,11 @@
 const MarketDataProvider = require("../../market/providers/marketData.provider");
-const { twelveDataGet } = require("./twelveDataClient");
+const { twelveDataGet, isRateLimitError } = require("./twelveDataClient");
+
+const rateLimitError = () => {
+    const error = new Error("Twelve Data rate limit reached. Please try again in a moment.");
+    error.statusCode = 429;
+    return error;
+};
 
 const toNumber = (value) => {
     if (value === null || value === undefined || value === "") {
@@ -84,6 +90,9 @@ class TwelveDataMarketDataProvider extends MarketDataProvider {
         try {
             quote = await twelveDataGet("/quote", { symbol: normalizedTicker });
         } catch (error) {
+            if (isRateLimitError(error)) {
+                throw rateLimitError();
+            }
             throw new Error(`Twelve Data could not find ${normalizedTicker}.`);
         }
 
@@ -116,6 +125,9 @@ class TwelveDataMarketDataProvider extends MarketDataProvider {
                 order: "ASC",
             });
         } catch (error) {
+            if (isRateLimitError(error)) {
+                throw rateLimitError();
+            }
             throw new Error(`Twelve Data could not find historical prices for ${normalizedTicker}.`);
         }
 

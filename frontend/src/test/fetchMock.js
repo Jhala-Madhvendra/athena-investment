@@ -84,6 +84,29 @@ export function mockCompsFetch(responses) {
  *   Each value is either a JSON body (200 OK) or { status, body } for an error
  *   (see errorResponse). `undefined` leaves that endpoint hanging (loading state).
  */
+/**
+ * Routes a mocked global.fetch for the AI Research tab. GET and POST both
+ * hit the exact same /api/ai/:ticker/research-report URL, so this
+ * distinguishes by HTTP method rather than URL substring.
+ *
+ * @param {object} responses - { get, generate }
+ *   Each value is either a JSON body (200 OK) or { status, body } for an
+ *   error (see errorResponse). `undefined` leaves that call hanging.
+ */
+export function mockAiFetch(responses) {
+  globalThis.fetch = vi.fn((url, options = {}) => {
+    const method = options.method || 'GET';
+    const entry = method === 'POST' ? responses.generate : responses.get;
+    if (entry === undefined) {
+      return new Promise(() => {}); // never resolves - simulates still-loading
+    }
+    if (entry && entry.__error) {
+      return Promise.resolve(jsonResponse(entry.status ?? 500, entry.body ?? { message: 'Request failed.' }));
+    }
+    return Promise.resolve(jsonResponse(200, entry));
+  });
+}
+
 export function mockValuationFetch(responses) {
   const resolveFor = (url) => {
     if (url.includes('/dcf/defaults')) return responses.defaults;

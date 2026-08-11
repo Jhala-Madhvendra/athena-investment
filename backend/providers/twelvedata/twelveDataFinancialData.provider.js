@@ -1,7 +1,13 @@
 const FinancialDataProvider = require("../financialDataProvider");
-const { twelveDataGet } = require("./twelveDataClient");
+const { twelveDataGet, isRateLimitError } = require("./twelveDataClient");
 
 const PREFERRED_US_EXCHANGES = new Set(["NASDAQ", "NYSE", "NYSE MKT", "AMEX"]);
+
+const rateLimitError = () => {
+    const error = new Error("Twelve Data rate limit reached. Please try again in a moment.");
+    error.statusCode = 429;
+    return error;
+};
 
 class TwelveDataFinancialDataProvider extends FinancialDataProvider {
     async getCompanyProfile(ticker) {
@@ -11,6 +17,9 @@ class TwelveDataFinancialDataProvider extends FinancialDataProvider {
         try {
             profile = await twelveDataGet("/profile", { symbol: normalizedTicker });
         } catch (error) {
+            if (isRateLimitError(error)) {
+                throw rateLimitError();
+            }
             throw new Error(`Twelve Data returned no company profile for ${normalizedTicker}.`);
         }
 
@@ -56,6 +65,9 @@ class TwelveDataFinancialDataProvider extends FinancialDataProvider {
         try {
             response = await twelveDataGet("/symbol_search", { symbol: normalizedName, outputsize: 20 });
         } catch (error) {
+            if (isRateLimitError(error)) {
+                throw rateLimitError();
+            }
             return null;
         }
 
