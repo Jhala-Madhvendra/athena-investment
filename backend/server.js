@@ -17,6 +17,9 @@ const analysisRoutes = require("./analysis/analysis.routes");
 const marketRoutes = require("./market/market.routes");
 const valuationRoutes = require("./valuation/valuation.routes");
 const aiRoutes = require("./ai/ai.routes");
+const identityRoutes = require("./identity/identity.routes");
+const watchlistRoutes = require("./watchlist/watchlist.routes");
+const portfolioRoutes = require("./portfolio/portfolio.routes");
 
 connectDB();
 
@@ -36,7 +39,10 @@ app.use(
             }
             return callback(new Error("Not allowed by CORS"));
         },
-        methods: ["GET", "POST"],
+        // PUT/DELETE added for Sprint 9's Watchlist/Portfolio mutation endpoints
+        // (editing/removing a holding or watchlist entry); GET/POST unchanged
+        // for every Sprint 1-8 route.
+        methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: false,
     })
 );
@@ -60,6 +66,9 @@ app.use("/api/analysis", analysisRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/valuation", valuationRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/identity", identityRoutes);
+app.use("/api/watchlist", watchlistRoutes);
+app.use("/api/portfolio", portfolioRoutes);
 
 app.use((err, req, res, next) => {
     const fallbackStatusCode = err.message === "Not allowed by CORS" ? 403 : 500;

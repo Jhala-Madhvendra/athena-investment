@@ -1,0 +1,48 @@
+# Watchlist & Portfolio Product Design
+
+## 1. Why does Athena need a persistent user layer now?
+
+Every prior sprint answered "what do I need to know about this company," a question that's fully satisfied within a single visit — a user searches a ticker, reads the analysis, and the value is delivered on the spot with nothing left to carry forward. Sprint 9's question is different in kind: "what has changed in the companies I care about" is meaningless without a *before* to compare against, and a *before* only exists if Athena remembers something about a specific user between visits. There was no way to answer this question without introducing user-specific state — Sprint 9 is the first point in the product's life where that becomes true, not an arbitrary point where it became convenient.
+
+## 2. Why do watchlists improve retention?
+
+A stateless research tool has no reason to pull a user back — the answer to "what do I need to know about AAPL" doesn't meaningfully change day to day, so there's no fresh reason to return. A watchlist manufactures that reason structurally: once a company is on it, "did anything change" is a question with a potentially different answer every time the user checks, and Athena is now the place that answer lives. This is the same mechanic behind every "saved items" feature that outperforms a pure search tool for return visits — the act of saving something creates an open loop the user is motivated to close.
+
+## 3. What's the difference between a research product and a tracking product?
+
+A research product (Sprints 1-8) answers a question you bring to it — you arrive with a ticker in mind, ask "what do I need to know," and leave with an answer. A tracking product (Sprint 9) answers a question it surfaces *to* you — you don't have to remember to ask "did AAPL's health score change"; the product tells you, unprompted, the next time you check in. The shift is from pull to push, from a single well-answered query to an ongoing relationship with a small set of companies over time. Athena needed to be excellent at the first before it could credibly attempt the second — a tracking product built on unreliable or unverified numbers would just be surfacing noise faster.
+
+## 4. Why should Watchlist and Portfolio be separate concepts?
+
+Because they represent different financial realities that feel similar but aren't: "I am interested in this company" (Watchlist) carries zero financial commitment, while "I own this investment" (Portfolio) means real money is at stake and every number attached to it is only meaningful *because* of that stake. Merging them invites a specific, real failure mode: a user seeing a watched stock "up 20% since I added it" and processing that the same way they'd process an actual 20% investment gain, when they never actually owned a share. See WatchlistVsPortfolio.md for the engineering and behavioral-finance detail; the product-level answer is that blurring research from ownership risks reinforcing exactly the emotional reactions (FOMO on watched gains, false regret on watched losses) a good financial product should help a user reason past, not amplify.
+
+## 5. Which metrics belong on the watchlist?
+
+The ones a user can act on in under a few seconds of scanning, each answering a distinct question: current price and daily change (is anything happening right now), Financial Health Score (is the underlying business still sound, as one composite number rather than ten raw ratios), 1Y return and P/E (how has the market treated this stock, and how is it currently priced), and DCF value/valuation gap (is Athena's own research-grade estimate still saying this looks cheap or expensive). Deliberately excluded: anything that needs its own explanation to be useful at a glance — raw balance sheet line items, individual liquidity/solvency ratios, scenario-by-scenario DCF sensitivity. Those belong on the full Company Dashboard, one click away, not competing for attention in a scannable list.
+
+## 6. Why avoid information overload?
+
+A watchlist a user has to study defeats its own purpose — the entire value proposition is "check in quickly, know if anything matters." Every additional column is a tax on that quick-check use case, and past a certain density the list stops being scannable and starts requiring the same close reading the full dashboard already provides better (more context, more explanation, room for the metric to breathe). The sprint's own instruction to track "a carefully selected subset" of change-detection metrics (five, not fifteen — see watchlistInsights.service.js's documented rationale for each) is the same principle applied to what gets flagged as a *change*, not just what gets displayed as a *value*: five well-chosen signals beat fifteen noisy ones for the same reason five columns beat fifteen.
+
+## 7. What user behavior do we want to encourage?
+
+Short, frequent check-ins rather than long, rare ones — the product succeeds if a user opens the watchlist for thirty seconds every few days, not if they open it once a month for twenty minutes. Concretely: adding a company the moment curiosity strikes (zero-friction "Add to Watchlist" from anywhere a ticker appears), returning specifically to see what changed (the explicit "Check What's Changed" action, not a passive scroll), and treating a flagged change as a prompt to go deeper — clicking through to the full Company Dashboard or generating an AI research report — rather than stopping at the watchlist row itself. The watchlist is designed as a funnel toward Athena's deeper tools, not a destination that substitutes for them.
+
+## 8. What assumptions are we making about users?
+
+That they track a small, deliberately curated set of companies (tens, not hundreds) rather than treating the watchlist as a dumping ground for every ticker they've ever heard of — this assumption underlies the "carefully selected metrics" design (Q6) and the client-side search/filter decision (a list too large to eyeball would need server-side pagination/search instead). That they check in periodically rather than continuously — the deterministic, non-real-time change detection (compare-on-read, not push notifications) assumes a user who opens the app every so often, not one who expects to be alerted the instant something moves. That "interested in" and "own" are genuinely different mental states for them, not a distinction only the product designer cares about (Q4). And that a single browser/device is an acceptable identity boundary for now — the minimal token-based identity mechanism assumes users aren't expecting their watchlist to follow them across devices this sprint.
+
+## 9. What user research would validate those assumptions?
+
+Whether real watchlists stay small (tens of tickers) or sprawl toward hundreds — directly testing the "curated, not dumping ground" assumption, and a strong signal for whether client-side filtering remains sufficient or a real search backend becomes necessary. Whether users actually click "Check What's Changed" repeatedly over time, versus checking once and never returning to it — the direct test of whether the deliberate-checkpoint design (Q7) produces the intended behavior or whether users expect and want passive notifications instead. Whether users who add a company to their Portfolio also, unprompted, add it to their Watchlist (or use the cross-link button provided) — testing whether Q4's separation actually matches how users think, or whether most users intuitively expect the two to be connected. And direct comprehension testing on the valuation-gap and Financial Health Score watchlist columns — whether a user glancing at the list for five seconds understands what they mean, or whether the "scannable in a few seconds" goal (Q5) is actually being met.
+
+## 10. What product metrics could measure success?
+
+- **Weekly active users returning specifically to Watchlist/Portfolio** — the direct retention signal Q2 is betting on; if this doesn't move relative to Sprint 1-8's baseline, the feature isn't doing its retention job regardless of how well-built it is.
+- **Companies added per user, and the ratio of adds to removes over time** — a rough proxy for whether users treat the watchlist as a living, curated list (adds *and* occasional prunes) versus an ever-growing junk drawer, informing whether Q8's "curated, small" assumption is holding.
+- **"Check What's Changed" click frequency and repeat-usage rate** — whether the explicit-checkpoint interaction (Q7) is actually used repeatedly, the most direct test of whether change detection is delivering its intended value.
+- **Return-visit cadence** (days between a user's watchlist/portfolio sessions) — the core retention-loop metric; a shortening cadence over a user's lifetime would be the strongest evidence the feature is working as designed.
+- **Portfolio creation rate among users who already have a watchlist** — a cross-feature funnel signal: does research-mode usage lead to ownership-tracking usage, the natural product progression Athena is built around.
+- **Click-through rate from a watchlist/portfolio row to the full Company Dashboard or an AI research report** — evidence the feature is funneling users toward Athena's deeper tools (Q7's stated goal) rather than becoming a shallow destination that substitutes for them.
+
+None of these are instrumented yet — deliberately. Adding analytics tracking without a clear question each metric answers would be exactly the kind of premature complexity the sprint's own instructions warn against; this section names what *would* be worth measuring once the feature has real usage to observe, not a build-it-now checklist.

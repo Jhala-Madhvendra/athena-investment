@@ -10,6 +10,8 @@ import MarketIntelligence from './components/MarketIntelligence'
 import Overview from './components/Overview'
 import Valuation from './components/Valuation'
 import AIResearch from './components/AIResearch'
+import Watchlist from './components/Watchlist'
+import Portfolio from './components/Portfolio'
 
 /** Backward-compat redirect for the old flat statement URLs (pre-Sprint-5). */
 function RedirectToStatement({ subtab }) {
@@ -29,6 +31,8 @@ function App() {
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
             <Routes>
               <Route path="/" element={<Navigate to="/financials/AAPL/overview" replace />} />
+              <Route path="/watchlist" element={<Watchlist />} />
+              <Route path="/portfolio" element={<Portfolio />} />
               <Route path="/financials/:ticker" element={<FinancialStatements />}>
                 <Route index element={<Navigate to="overview" replace />} />
                 <Route path="overview" element={<Overview />} />

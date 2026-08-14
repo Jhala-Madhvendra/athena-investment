@@ -11,9 +11,17 @@ import {
   Search,
   Loader2,
   X,
+  ListChecks,
+  Wallet,
 } from 'lucide-react';
 
 const SEARCH_DEBOUNCE_MS = 250;
+
+/** Ticker-independent pages - not nested under /financials/:ticker, so they use absolute `to` paths. */
+const GLOBAL_NAV_ITEMS = [
+  { key: 'watchlist', label: 'Watchlist', to: '/watchlist', icon: ListChecks },
+  { key: 'portfolio', label: 'Portfolio', to: '/portfolio', icon: Wallet },
+];
 
 const NAV_ITEMS = [
   { key: 'overview', label: 'Overview', to: 'overview', icon: LayoutDashboard },
@@ -295,6 +303,30 @@ function Sidebar({ mobileOpen = false, onClose }) {
       <CompanySearch onNavigate={onClose} />
 
       <nav aria-label="Primary" className="flex-1 px-2.5">
+        <ul className="mb-4 space-y-0.5 border-b border-navy-border pb-4">
+          {GLOBAL_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <li key={item.key}>
+                <NavLink
+                  to={item.to}
+                  onClick={onClose}
+                  className={({ isActive }) =>
+                    `group flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-brand-600 text-white shadow-sm'
+                        : 'text-navy-ink-muted hover:bg-navy-800 hover:text-white'
+                    }`
+                  }
+                >
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{item.label}</span>
+                </NavLink>
+              </li>
+            );
+          })}
+        </ul>
+
         <p className="px-2 pb-2 text-xs font-semibold tracking-wide text-navy-ink-muted uppercase">
           {ticker.toUpperCase()} analysis
         </p>
