@@ -11,6 +11,7 @@
  */
 
 const growthCalculator = require('./growth.calculator');
+const logger = require('../utils/logger');
 
 /**
  * Normalize Net Profit Margin to 0-100 score
@@ -375,7 +376,7 @@ function getWeights(strategy = 'balanced') {
 
   const validation = validateWeights(weights);
   if (!validation.valid) {
-    console.warn(`Weight validation failed: ${validation.error}, using balanced`);
+    logger.warn({ reason: validation.error }, 'Weight validation failed, using balanced weighting');
     return weightingStrategies.balanced;
   }
 

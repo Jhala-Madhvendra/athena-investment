@@ -10,6 +10,7 @@ const insightEngine = require('./insight.engine');
 const validator = require('./analysis.validator');
 const financialsService = require('../financials/financials.service');
 const ratioFormulas = require('../ratio/ratio.formulas');
+const logger = require('../utils/logger');
 
 /**
  * Transform financial statements from MongoDB into format required by engines
@@ -313,7 +314,7 @@ async function calculateAnalysis(ticker, options = {}) {
         status: error.statusCode
       };
     }
-    console.error('Analysis calculation error:', error);
+    logger.error({ err: error }, 'Analysis calculation error');
     return {
       error: `Analysis calculation failed: ${error.message}`,
       status: 500
