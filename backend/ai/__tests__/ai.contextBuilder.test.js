@@ -11,6 +11,7 @@ jest.mock("../../valuation/valuation.service", () => ({
 }));
 jest.mock("../../valuation/comps/comps.service", () => ({ calculateComparableCompanyAnalysis: jest.fn() }));
 jest.mock("../../valuation/comps/comps.peerSelector", () => ({ getAvailablePeerCandidates: jest.fn() }));
+jest.mock("../../news/news.service", () => ({ getRecentArticlesForContext: jest.fn() }));
 
 const companyService = require("../../services/company.service");
 const ratioService = require("../../ratio/ratio.service");
@@ -19,6 +20,7 @@ const marketService = require("../../market/market.service");
 const valuationService = require("../../valuation/valuation.service");
 const compsService = require("../../valuation/comps/comps.service");
 const compsPeerSelector = require("../../valuation/comps/comps.peerSelector");
+const newsService = require("../../news/news.service");
 
 const { buildResearchContext, buildEvidenceAllowList } = require("../ai.contextBuilder");
 
@@ -163,6 +165,17 @@ const COMPS_RESULT = {
     calculatedAt: "2026-08-11T10:00:00.000Z",
 };
 
+const RECENT_ARTICLES = [
+    {
+        title: "Apple reports record quarterly earnings",
+        description: "Revenue and EPS both ahead of consensus.",
+        source: "Reuters",
+        publishedAt: "2026-08-10T09:00:00.000Z",
+        category: "Earnings",
+        url: "https://example.com/apple-earnings",
+    },
+];
+
 const mockHappyPath = () => {
     companyService.getCompanyDetails.mockResolvedValue(COMPANY);
     ratioService.getRatiosByTicker.mockResolvedValue(RATIOS);
@@ -173,6 +186,7 @@ const mockHappyPath = () => {
     valuationService.calculateDCFValuation.mockResolvedValue(DCF_RESULT);
     compsPeerSelector.getAvailablePeerCandidates.mockResolvedValue(CANDIDATES_RESPONSE);
     compsService.calculateComparableCompanyAnalysis.mockResolvedValue(COMPS_RESULT);
+    newsService.getRecentArticlesForContext.mockResolvedValue(RECENT_ARTICLES);
 };
 
 afterEach(() => {
@@ -249,6 +263,21 @@ describe("buildResearchContext - happy path", () => {
             financialDataPeriod: ANALYSIS.period,
             dcfCalculatedAt: DCF_RESULT.calculatedAt,
         });
+
+        expect(context.recentEvents).toEqual({
+            available: true,
+            events: [
+                {
+                    title: "Apple reports record quarterly earnings",
+                    description: "Revenue and EPS both ahead of consensus.",
+                    source: "Reuters",
+                    publishedAt: "2026-08-10T09:00:00.000Z",
+                    category: "Earnings",
+                    url: "https://example.com/apple-earnings",
+                },
+            ],
+        });
+        expect(newsService.getRecentArticlesForContext).toHaveBeenCalledWith("AAPL", 5);
     });
 
     it("uses the caller-supplied preTaxCostOfDebt instead of the illustrative fallback", async () => {
@@ -328,6 +357,27 @@ describe("buildResearchContext - partial failure tolerance", () => {
         expect(context.dcf).toEqual({ available: false, reason: "Terminal growth rate must be less than WACC." });
     });
 
+    it("marks recentEvents unavailable (not an error) when no news has been retrieved yet", async () => {
+        mockHappyPath();
+        newsService.getRecentArticlesForContext.mockResolvedValue([]);
+
+        const { context } = await buildResearchContext("AAPL");
+
+        expect(context.recentEvents).toEqual({
+            available: false,
+            reason: "No recent news has been retrieved for AAPL yet.",
+        });
+    });
+
+    it("marks recentEvents unavailable when the news lookup itself throws", async () => {
+        mockHappyPath();
+        newsService.getRecentArticlesForContext.mockRejectedValue(new Error("DB unavailable"));
+
+        const { context } = await buildResearchContext("AAPL");
+
+        expect(context.recentEvents).toEqual({ available: false, reason: "DB unavailable" });
+    });
+
     it("marks comps unavailable when fewer than 2 usable peers exist", async () => {
         mockHappyPath();
         compsPeerSelector.getAvailablePeerCandidates.mockResolvedValue({
@@ -357,5 +407,24 @@ describe("buildEvidenceAllowList", () => {
         expect(allowList).toContain("comps.valuationRange.low");
         expect(allowList.some((p) => p.startsWith("profile."))).toBe(false);
         expect(allowList).not.toContain("dcf.available");
+    });
+
+    it("includes each recent event's article url, not a dot-path, when recentEvents is available", async () => {
+        mockHappyPath();
+
+        const { context } = await buildResearchContext("AAPL");
+        const allowList = buildEvidenceAllowList(context);
+
+        expect(allowList).toContain("https://example.com/apple-earnings");
+    });
+
+    it("excludes article urls when recentEvents is unavailable", async () => {
+        mockHappyPath();
+        newsService.getRecentArticlesForContext.mockResolvedValue([]);
+
+        const { context } = await buildResearchContext("AAPL");
+        const allowList = buildEvidenceAllowList(context);
+
+        expect(allowList).not.toContain("https://example.com/apple-earnings");
     });
 });

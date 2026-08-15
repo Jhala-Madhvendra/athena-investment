@@ -137,6 +137,46 @@ describe("validateReportSchema", () => {
         expect(result.warnings.length).toBeGreaterThan(0);
     });
 
+    it("accepts recentDevelopments when present and non-empty, sanitizing/trimming it", () => {
+        const result = validateReportSchema(
+            { ...VALID_REPORT, recentDevelopments: "  The company reported quarterly earnings.  " },
+            EVIDENCE_ALLOW_LIST
+        );
+
+        expect(result.isValid).toBe(true);
+        expect(result.sanitized.recentDevelopments).toBe("The company reported quarterly earnings.");
+    });
+
+    it("allows recentDevelopments to be omitted entirely", () => {
+        const result = validateReportSchema(VALID_REPORT, EVIDENCE_ALLOW_LIST);
+        expect(result.isValid).toBe(true);
+        expect(result.sanitized.recentDevelopments).toBeUndefined();
+    });
+
+    it("rejects a blank recentDevelopments if present", () => {
+        const result = validateReportSchema({ ...VALID_REPORT, recentDevelopments: "   " }, EVIDENCE_ALLOW_LIST);
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toEqual(expect.arrayContaining([expect.stringContaining("recentDevelopments")]));
+    });
+
+    it("allows sectionEvidence.recentDevelopments to cite an article url from the allow-list", () => {
+        const allowListWithUrl = [...EVIDENCE_ALLOW_LIST, "https://example.com/apple-earnings"];
+        const result = validateReportSchema(
+            {
+                ...VALID_REPORT,
+                recentDevelopments: "The company reported quarterly earnings ahead of estimates.",
+                sectionEvidence: {
+                    ...VALID_REPORT.sectionEvidence,
+                    recentDevelopments: ["https://example.com/apple-earnings"],
+                },
+            },
+            allowListWithUrl
+        );
+
+        expect(result.isValid).toBe(true);
+        expect(result.sanitized.sectionEvidence.recentDevelopments).toEqual(["https://example.com/apple-earnings"]);
+    });
+
     it("does not flag benign phrases containing 'sell'/'buy' as substrings only via word-boundary matching", () => {
         const result = validateReportSchema(
             { ...VALID_REPORT, conclusion: "The sell-through rate and buyer sentiment are both improving." },

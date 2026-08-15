@@ -45,6 +45,7 @@ const NARRATIVE_SECTIONS = [
   ['financialHealth', 'Financial Health'],
   ['marketPerformance', 'Market Performance'],
   ['valuation', 'Valuation'],
+  ['recentDevelopments', 'Recent Developments'],
   ['conclusion', 'Analytical Conclusion'],
 ];
 
@@ -247,7 +248,7 @@ function AIResearch() {
 
       <Card>
         <div className="space-y-6">
-          {NARRATIVE_SECTIONS.map(([key, title]) => (
+          {NARRATIVE_SECTIONS.filter(([key]) => sections[key]).map(([key, title]) => (
             <ReportSection key={key} title={title} text={sections[key]} evidence={evidence[key]} />
           ))}
         </div>

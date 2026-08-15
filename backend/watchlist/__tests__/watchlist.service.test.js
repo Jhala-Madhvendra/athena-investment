@@ -18,16 +18,19 @@ jest.mock("../../valuation/valuation.service", () => ({
     getDCFDefaults: jest.fn(),
     calculateDCFValuation: jest.fn(),
 }));
+jest.mock("../../news/news.service", () => ({ getLatestStoredArticle: jest.fn() }));
 
 const Watchlist = require("../watchlist.model");
 const Company = require("../../models/company.model");
 const marketService = require("../../market/market.service");
 const analysisService = require("../../analysis/analysis.service");
 const valuationService = require("../../valuation/valuation.service");
+const newsService = require("../../news/news.service");
 const watchlistService = require("../watchlist.service");
 
 beforeEach(() => {
     mockSave.mockReset().mockResolvedValue(undefined);
+    newsService.getLatestStoredArticle.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -132,6 +135,7 @@ describe("getWatchlistWithMetrics", () => {
         expect(row.price.current).toBeNull();
         expect(row.financialHealthScore).toBeNull();
         expect(row.dcf.available).toBe(false);
+        expect(row.latestEvent).toBeNull();
     });
 
     it("assembles a full row when every data source succeeds", async () => {
@@ -178,6 +182,12 @@ describe("getWatchlistWithMetrics", () => {
             upsideDownsidePercent: 9.5,
             calculatedAt: "2026-08-13T00:00:00.000Z",
         });
+        newsService.getLatestStoredArticle.mockResolvedValue({
+            title: "Apple reports quarterly earnings",
+            category: "Earnings",
+            publishedAt: "2026-08-12T00:00:00.000Z",
+            url: "https://example.com/apple-earnings",
+        });
 
         const result = await watchlistService.getWatchlistWithMetrics("user1");
         const row = result.companies[0];
@@ -192,5 +202,11 @@ describe("getWatchlistWithMetrics", () => {
         expect(row.dcf.available).toBe(true);
         expect(row.dcf.intrinsicValuePerShare).toBe(230);
         expect(row.dcf.valuationGapPercent).toBe(9.5);
+        expect(row.latestEvent).toEqual({
+            title: "Apple reports quarterly earnings",
+            category: "Earnings",
+            publishedAt: "2026-08-12T00:00:00.000Z",
+            url: "https://example.com/apple-earnings",
+        });
     });
 });

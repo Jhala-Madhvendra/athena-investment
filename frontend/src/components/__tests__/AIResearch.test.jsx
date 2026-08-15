@@ -110,6 +110,39 @@ describe('AIResearch - report layout', () => {
   });
 });
 
+describe('AIResearch - recent developments', () => {
+  it('renders the Recent Developments section with a source link when the backend includes it', async () => {
+    const reportWithNews = {
+      ...aiReportFixture,
+      report: {
+        ...aiReportFixture.report,
+        recentDevelopments: 'The company reported quarterly earnings ahead of estimates on 2026-08-10.',
+      },
+      sectionEvidence: {
+        ...aiReportFixture.sectionEvidence,
+        recentDevelopments: ['https://example.com/apple-earnings'],
+      },
+    };
+    mockAiFetch({ get: reportWithNews });
+    renderWithShellContext(<AIResearch />, { path: 'ai-research' });
+
+    expect(await screen.findByText('Recent Developments')).toBeInTheDocument();
+    expect(screen.getByText(reportWithNews.report.recentDevelopments)).toBeInTheDocument();
+
+    const sourceLink = screen.getByRole('link', { name: /example\.com/ });
+    expect(sourceLink).toHaveAttribute('href', 'https://example.com/apple-earnings');
+    expect(sourceLink).toHaveAttribute('target', '_blank');
+  });
+
+  it('omits the Recent Developments section entirely when the backend report has no such field', async () => {
+    mockAiFetch({ get: aiReportFixture });
+    renderWithShellContext(<AIResearch />, { path: 'ai-research' });
+
+    await screen.findByText('Executive Summary');
+    expect(screen.queryByText('Recent Developments')).not.toBeInTheDocument();
+  });
+});
+
 describe('AIResearch - generate flow', () => {
   it('shows a Generating… state while the request is in flight', async () => {
     // A never-resolving generate promise (matching mockValuationFetch({})'s

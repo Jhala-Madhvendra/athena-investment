@@ -39,6 +39,7 @@ const REPORT_JSON_SHAPE = `{
   "financialHealth": string,
   "marketPerformance": string,
   "valuation": string,
+  "recentDevelopments": string,
   "strengths": string[],
   "risks": string[],
   "considerations": string[],
@@ -64,11 +65,18 @@ FACT vs INTERPRETATION vs RISK/CONSIDERATION:
 - "strengths" and "risks" must each be traceable to specific context values - do not include a qualitative claim unsupported by the data you were given.
 - "considerations" covers analytical caveats and methodology limitations (e.g. an auto-selected peer set, an illustrative assumption) - flagged in the context itself where relevant.
 
+RECENT DEVELOPMENTS (non-negotiable):
+- If "recentEvents" has "available": true, write "recentDevelopments" using ONLY the events listed there - never invent a news event, and never use outside knowledge about the company's news.
+- State what happened as fact first ("The company reported X on [date]"), then clearly separate any interpretation ("this may indicate...", "this could relate to...") - never blend the two into one unlabeled claim, and never state an interpretation as if it were a reported fact.
+- Where relevant, connect a development to an existing metric already in this context (e.g. an earnings event to the reported revenueCAGR or healthScore) - but only if that metric is actually present in the context.
+- If "recentEvents" has "available": false, set "recentDevelopments" to a short note that no recent news has been retrieved for this company - do not fabricate one.
+- Cite the specific article URL(s) you drew on in "sectionEvidence.recentDevelopments" - see OUTPUT FORMAT below.
+
 OUTPUT FORMAT (non-negotiable):
 - Respond with ONLY a single JSON object matching this exact shape - no markdown code fences, no prose before or after it:
 ${REPORT_JSON_SHAPE}
 - Every string field must be non-empty. Narrative fields: 2-5 sentences. "strengths"/"risks"/"considerations": 3-6 short bullet-style entries each.
-- "sectionEvidence" maps each narrative section name to an array of context field paths (from the "Evidence field paths you may cite" list in the user message) that support what you wrote in that section. Only use paths from that list - never invent a path.
+- "sectionEvidence" maps each narrative section name to an array of citations (from the "Evidence field paths you may cite" list in the user message) that support what you wrote in that section. Only use entries from that list - never invent one. For every other section this is a context field path (e.g. "ratios.profitability.grossMargin"); for "recentDevelopments" specifically, it is the article URL(s) from "recentEvents.events" that you drew on.
 - Do not include any field not listed in the shape above.`;
 
 const buildUserMessage = (context, evidenceAllowList) => `Company: ${context.ticker}

@@ -107,6 +107,34 @@ export function mockAiFetch(responses) {
   });
 }
 
+/**
+ * Routes a mocked global.fetch for the News & Events tab's three endpoints.
+ * Checked most-specific first, since `/refresh` and `/categories` both
+ * contain the base `/api/news/:ticker` path.
+ *
+ * @param {object} responses - { articles, categories, refresh }
+ *   Each value is either a JSON body (200 OK) or { status, body } for an
+ *   error (see errorResponse). `undefined` leaves that endpoint hanging.
+ */
+export function mockNewsFetch(responses) {
+  const resolveFor = (url) => {
+    if (url.includes('/refresh')) return responses.refresh;
+    if (url.includes('/categories')) return responses.categories;
+    return responses.articles;
+  };
+
+  globalThis.fetch = vi.fn((url) => {
+    const entry = resolveFor(url);
+    if (entry === undefined) {
+      return new Promise(() => {}); // never resolves - simulates still-loading
+    }
+    if (entry && entry.__error) {
+      return Promise.resolve(jsonResponse(entry.status ?? 500, entry.body ?? { message: 'Request failed.' }));
+    }
+    return Promise.resolve(jsonResponse(200, entry));
+  });
+}
+
 export function mockValuationFetch(responses) {
   const resolveFor = (url) => {
     if (url.includes('/dcf/defaults')) return responses.defaults;

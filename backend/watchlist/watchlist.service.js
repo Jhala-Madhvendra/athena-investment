@@ -12,6 +12,7 @@ const Company = require("../models/company.model");
 const marketService = require("../market/market.service");
 const analysisService = require("../analysis/analysis.service");
 const valuationService = require("../valuation/valuation.service");
+const newsService = require("../news/news.service");
 const { ILLUSTRATIVE_CREDIT_SPREAD, FALLBACK_COST_OF_DEBT } = require("../ai/ai.contextBuilder");
 
 class DuplicateCompanyError extends Error {
@@ -137,7 +138,7 @@ const getIllustrativeDcf = async (ticker) => {
 
 /** One enriched watchlist row. Never throws - a failure in any one data source degrades that field, not the whole row. */
 const buildWatchlistRow = async (ticker, addedAt) => {
-    const [company, quote, performance, analysis, dcf] = await Promise.all([
+    const [company, quote, performance, analysis, dcf, latestArticle] = await Promise.all([
         Company.findOne({ ticker }).select("name exchange").lean(),
         marketService.getCurrentMarketData(ticker).catch(() => null),
         marketService
@@ -146,6 +147,10 @@ const buildWatchlistRow = async (ticker, addedAt) => {
             .catch(() => null),
         analysisService.calculateAnalysis(ticker, {}).catch(() => null),
         getIllustrativeDcf(ticker),
+        // DB-only lookup (news.service.js's getLatestStoredArticle never
+        // triggers a provider call) - the watchlist page must stay cheap,
+        // it doesn't refresh news on every load. See NewsCaching.md.
+        newsService.getLatestStoredArticle(ticker),
     ]);
 
     const dailyChangePercent =
@@ -172,6 +177,14 @@ const buildWatchlistRow = async (ticker, addedAt) => {
         revenueCAGRPercent: analysisAvailable ? analysis.growth.revenueCAGR : null,
         financialStatementPeriod: analysisAvailable ? analysis.period.endYear : null,
         dcf,
+        latestEvent: latestArticle
+            ? {
+                  title: latestArticle.title,
+                  category: latestArticle.category,
+                  publishedAt: latestArticle.publishedAt,
+                  url: latestArticle.url,
+              }
+            : null,
         dataFreshness: {
             marketData: quote?.asOf ?? null,
             financialStatements: analysisAvailable ? `FY${analysis.period.endYear}` : null,

@@ -47,7 +47,23 @@ const env = {
     // Bumped whenever the context or report schema changes shape, so a
     // stored report from an old schema is treated as "no report" instead
     // of being served stale/incompatible - see ai.model.js.
-    aiPromptVersion: process.env.AI_PROMPT_VERSION || "v1",
+    // Bumped to v2 in Sprint 10: the context gained a `recentEvents` section
+    // and the report schema gained an optional `recentDevelopments` field,
+    // so any report persisted under v1 is treated as stale and regenerated
+    // once rather than served in the old shape.
+    aiPromptVersion: process.env.AI_PROMPT_VERSION || "v2",
+    // News & Event Intelligence (Sprint 10) - "yahoo" (default, unofficial,
+    // no key), "marketaux" (dedicated news API, needs MARKETAUX_API_KEY),
+    // or "mock" (development-only fixtures, never real news).
+    newsProvider: (process.env.NEWS_PROVIDER || "yahoo").toLowerCase(),
+    marketauxApiKey: process.env.MARKETAUX_API_KEY || null,
+    // How long stored news for a ticker is considered fresh before a GET
+    // triggers one live provider refresh. Deliberately not per-request -
+    // see backend/news/news.service.js and research/engineering/NewsCaching.md.
+    newsCacheTtlMs: Number(process.env.NEWS_CACHE_TTL_MS) || 4 * 60 * 60 * 1000,
+    // How long a stored article is kept before Mongo's TTL index expires it
+    // (backend/news/news.model.js). Not an archive - see NewsCaching.md.
+    newsRetentionDays: Number(process.env.NEWS_RETENTION_DAYS) || 90,
 };
 
 if (env.isProduction && env.frontendOrigins.length === 0) {

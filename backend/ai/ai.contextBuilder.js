@@ -44,9 +44,15 @@ const marketService = require("../market/market.service");
 const valuationService = require("../valuation/valuation.service");
 const compsService = require("../valuation/comps/comps.service");
 const compsPeerSelector = require("../valuation/comps/comps.peerSelector");
+const newsService = require("../news/news.service");
 
 const ANALYSIS_YEARS = 5;
 const MAX_AUTO_PEERS = 5;
+// Kept small deliberately - this feeds an LLM prompt, not a news feed. Only
+// the deterministic pipeline's already-stored, already-classified articles
+// are used (news.service.js's DB-only read, never a live provider call
+// from here) - see research/engineering/AIContextWithExternalSources.md.
+const MAX_RECENT_EVENTS = 5;
 const COMPS_STATISTIC = "median";
 // 150bps over the risk-free rate - a generic investment-grade proxy, NOT
 // derived from this company's actual data. Only used when the caller
@@ -330,6 +336,40 @@ const buildCompsSection = async (ticker) => {
 };
 
 // ---------------------------------------------------------------------------
+// Recent news/events (Sprint 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Only title/description/source/publishedAt/category/url - never full
+ * article text (see Sprint 10 brief). Reads whatever the deterministic
+ * news pipeline has already stored; does not trigger a live provider
+ * fetch, so this section being "unavailable" just means no news has been
+ * retrieved for this ticker yet, not that anything failed.
+ */
+const buildRecentEventsSection = async (ticker) => {
+    try {
+        const articles = await newsService.getRecentArticlesForContext(ticker, MAX_RECENT_EVENTS);
+
+        if (!articles || articles.length === 0) {
+            return unavailable(`No recent news has been retrieved for ${ticker} yet.`);
+        }
+
+        return available({
+            events: articles.map((article) => ({
+                title: article.title,
+                description: article.description ?? null,
+                source: article.source ?? null,
+                publishedAt: article.publishedAt,
+                category: article.category,
+                url: article.url,
+            })),
+        });
+    } catch (error) {
+        return unavailable(error.message);
+    }
+};
+
+// ---------------------------------------------------------------------------
 // Assembly
 // ---------------------------------------------------------------------------
 
@@ -341,13 +381,14 @@ const buildCompsSection = async (ticker) => {
 const buildResearchContext = async (ticker, options = {}) => {
     const normalizedTicker = ticker.trim().toUpperCase();
 
-    const [profile, ratios, analysis, marketData, dcf, comps] = await Promise.all([
+    const [profile, ratios, analysis, marketData, dcf, comps, recentEvents] = await Promise.all([
         buildProfileSection(normalizedTicker),
         buildRatiosSection(normalizedTicker),
         buildAnalysisSection(normalizedTicker),
         buildMarketDataSection(normalizedTicker),
         buildDcfSection(normalizedTicker, options),
         buildCompsSection(normalizedTicker),
+        buildRecentEventsSection(normalizedTicker),
     ]);
 
     const context = {
@@ -359,6 +400,7 @@ const buildResearchContext = async (ticker, options = {}) => {
         marketData,
         dcf,
         comps,
+        recentEvents,
     };
 
     const dataFreshness = {
@@ -405,6 +447,20 @@ const buildEvidenceAllowList = (context) => {
             flattenPaths(context[section], section, paths);
         }
     });
+
+    // recentEvents.events is an array of objects (title/url/...), so the
+    // generic flattenPaths above deliberately skips it (same as
+    // analysis.insights) rather than emitting per-field dot-paths. For
+    // "Recent Developments" citations, the meaningful citable unit is the
+    // whole article - so its `url` itself becomes an allow-listed value,
+    // reusing the exact same sectionEvidence sanitization every other
+    // section already goes through instead of adding a parallel mechanism.
+    if (context.recentEvents?.available) {
+        context.recentEvents.events.forEach((event) => {
+            if (event.url) paths.push(event.url);
+        });
+    }
+
     return paths;
 };
 
@@ -413,6 +469,7 @@ module.exports = {
     buildEvidenceAllowList,
     ANALYSIS_YEARS,
     MAX_AUTO_PEERS,
+    MAX_RECENT_EVENTS,
     COMPS_STATISTIC,
     ILLUSTRATIVE_CREDIT_SPREAD,
     FALLBACK_COST_OF_DEBT,

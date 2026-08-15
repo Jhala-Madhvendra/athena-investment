@@ -10,6 +10,7 @@ import Badge from './ui/Badge'
 import { fetchJson } from '../lib/api'
 import { formatPercent, formatPerShare } from '../lib/compsFormat'
 import { getScoreTier, getSentimentTier } from '../lib/scoreTokens'
+import { formatRelativeTime } from '../lib/newsFormat'
 
 const formatDateTime = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'
@@ -279,6 +280,7 @@ function Watchlist() {
                   <th className="px-3 py-3">P/E</th>
                   <th className="px-3 py-3">DCF Value</th>
                   <th className="px-3 py-3">Valuation Gap</th>
+                  <th className="px-3 py-3">Latest Event</th>
                   <th className="px-3 py-3">Last Updated</th>
                   <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
@@ -332,6 +334,23 @@ function Watchlist() {
                       </td>
                       <td className="px-3 py-3 tabular-nums" style={{ color: gapTier.hex }}>
                         {row.dcf?.available ? formatPercent(row.dcf.valuationGapPercent) : '—'}
+                      </td>
+                      <td className="px-3 py-3 max-w-[220px]">
+                        {row.latestEvent ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/financials/${encodeURIComponent(row.ticker)}/news`)}
+                            className="text-left hover:underline"
+                            title={row.latestEvent.title}
+                          >
+                            <span className="block truncate text-xs text-ink">{row.latestEvent.title}</span>
+                            <span className="text-xs text-ink-muted">
+                              {row.latestEvent.category} · {formatRelativeTime(row.latestEvent.publishedAt)}
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="text-ink-muted">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-xs text-ink-muted">
                         <div>{formatDateTime(row.price?.asOf)}</div>

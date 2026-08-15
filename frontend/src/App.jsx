@@ -10,6 +10,7 @@ import MarketIntelligence from './components/MarketIntelligence'
 import Overview from './components/Overview'
 import Valuation from './components/Valuation'
 import AIResearch from './components/AIResearch'
+import NewsEvents from './components/NewsEvents'
 import Watchlist from './components/Watchlist'
 import Portfolio from './components/Portfolio'
 
@@ -48,6 +49,7 @@ function App() {
                 <Route path="valuation" element={<Navigate to="dcf" replace />} />
                 <Route path="valuation/:subtab" element={<Valuation />} />
                 <Route path="ai-research" element={<AIResearch />} />
+                <Route path="news" element={<NewsEvents />} />
               </Route>
               <Route path="*" element={<Navigate to="/financials/AAPL/overview" replace />} />
             </Routes>

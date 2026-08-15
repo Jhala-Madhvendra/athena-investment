@@ -43,7 +43,7 @@ class MalformedLLMResponseError extends Error {
     }
 }
 
-const CONTEXT_SECTIONS = ["profile", "ratios", "analysis", "marketData", "dcf", "comps"];
+const CONTEXT_SECTIONS = ["profile", "ratios", "analysis", "marketData", "dcf", "comps", "recentEvents"];
 const RETRY_INSTRUCTION = (reason) =>
     `\n\nYour previous response could not be used: ${reason}\nRespond again with ONLY a single valid JSON object matching the required shape - no markdown, no commentary, no extra fields.`;
 

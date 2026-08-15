@@ -26,10 +26,15 @@ const REQUIRED_STRING_SECTIONS = [
 ];
 const REQUIRED_ARRAY_SECTIONS = ["strengths", "risks", "considerations"];
 const OPTIONAL_ARRAY_SECTIONS = ["dataGaps"];
+// Optional, not required: a ticker with no news retrieved yet (recentEvents
+// unavailable in the context) shouldn't fail an otherwise-valid report -
+// see ai.contextBuilder.js's buildRecentEventsSection.
+const OPTIONAL_STRING_SECTIONS = ["recentDevelopments"];
 const ALL_TOP_LEVEL_KEYS = new Set([
     ...REQUIRED_STRING_SECTIONS,
     ...REQUIRED_ARRAY_SECTIONS,
     ...OPTIONAL_ARRAY_SECTIONS,
+    ...OPTIONAL_STRING_SECTIONS,
     "sectionEvidence",
 ]);
 
@@ -136,11 +141,18 @@ const validateReportSchema = (report, evidenceAllowList = []) => {
         errors.push('"dataGaps", if present, must be an array of non-empty strings.');
     }
 
+    OPTIONAL_STRING_SECTIONS.forEach((key) => {
+        if (report[key] !== undefined && !isNonEmptyString(report[key])) {
+            errors.push(`"${key}", if present, must be a non-empty string.`);
+        }
+    });
+
     if (errors.length > 0) {
         return { isValid: false, errors, warnings, sanitized: null };
     }
 
-    ["conclusion", "valuation"].forEach((key) => {
+    ["conclusion", "valuation", "recentDevelopments"].forEach((key) => {
+        if (report[key] === undefined) return;
         if (RECOMMENDATION_PATTERN.test(report[key])) {
             warnings.push(`"${key}" may contain investment-recommendation language and should be reviewed: "${report[key]}"`);
         }
@@ -154,6 +166,11 @@ const validateReportSchema = (report, evidenceAllowList = []) => {
         sanitized[key] = report[key].map((s) => s.trim());
     });
     sanitized.dataGaps = Array.isArray(report.dataGaps) ? report.dataGaps.map((s) => s.trim()) : [];
+    OPTIONAL_STRING_SECTIONS.forEach((key) => {
+        if (isNonEmptyString(report[key])) {
+            sanitized[key] = report[key].trim();
+        }
+    });
     sanitized.sectionEvidence = sanitizeSectionEvidence(report.sectionEvidence, evidenceAllowList);
 
     return { isValid: true, errors, warnings, sanitized };
@@ -164,4 +181,5 @@ module.exports = {
     validateReportSchema,
     REQUIRED_STRING_SECTIONS,
     REQUIRED_ARRAY_SECTIONS,
+    OPTIONAL_STRING_SECTIONS,
 };

@@ -1,5 +1,5 @@
 const { buildPrompt, buildSystemPrompt, buildUserMessage, MAX_TOKENS, TEMPERATURE } = require("../ai.promptBuilder");
-const { REQUIRED_STRING_SECTIONS, REQUIRED_ARRAY_SECTIONS } = require("../ai.validator");
+const { REQUIRED_STRING_SECTIONS, REQUIRED_ARRAY_SECTIONS, OPTIONAL_STRING_SECTIONS } = require("../ai.validator");
 
 const CONTEXT = {
     ticker: "AAPL",
@@ -13,9 +13,11 @@ describe("buildSystemPrompt", () => {
     const systemPrompt = buildSystemPrompt();
 
     it("declares every field the validator actually requires - stays in sync with ai.validator.js", () => {
-        [...REQUIRED_STRING_SECTIONS, ...REQUIRED_ARRAY_SECTIONS, "dataGaps", "sectionEvidence"].forEach((field) => {
-            expect(systemPrompt).toContain(`"${field}"`);
-        });
+        [...REQUIRED_STRING_SECTIONS, ...REQUIRED_ARRAY_SECTIONS, ...OPTIONAL_STRING_SECTIONS, "dataGaps", "sectionEvidence"].forEach(
+            (field) => {
+                expect(systemPrompt).toContain(`"${field}"`);
+            }
+        );
     });
 
     it("states the core grounding, no-advice, and unavailable-data rules", () => {
@@ -23,6 +25,12 @@ describe("buildSystemPrompt", () => {
         expect(systemPrompt).toMatch(/Data unavailable/);
         expect(systemPrompt).toMatch(/Buy|Sell/);
         expect(systemPrompt).toMatch(/JSON object/i);
+    });
+
+    it("distinguishes fact from interpretation for recent developments and requires source citation", () => {
+        expect(systemPrompt).toMatch(/RECENT DEVELOPMENTS/i);
+        expect(systemPrompt).toMatch(/interpretation/i);
+        expect(systemPrompt).toMatch(/recentEvents/);
     });
 });
 

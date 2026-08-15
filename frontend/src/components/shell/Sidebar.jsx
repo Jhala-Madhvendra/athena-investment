@@ -13,6 +13,7 @@ import {
   X,
   ListChecks,
   Wallet,
+  Newspaper,
 } from 'lucide-react';
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
   { key: 'business-analysis', label: 'Business Analysis', to: 'business-analysis/overview', icon: Activity },
   { key: 'market-intelligence', label: 'Market Intelligence', to: 'market-intelligence', icon: LineChart },
   { key: 'valuation', label: 'Valuation', to: 'valuation', icon: Calculator },
+  { key: 'news', label: 'News & Events', to: 'news', icon: Newspaper },
   { key: 'ai-research', label: 'AI Research', to: 'ai-research', icon: Sparkles },
 ];
 
