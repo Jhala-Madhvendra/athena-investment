@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, ExternalLink, ListPlus, Wallet, X } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import { Plus, Pencil, Trash2, ExternalLink, ListPlus, Wallet, X, Bell } from 'lucide-react'
 import Card from './ui/Card'
 import Skeleton from './ui/Skeleton'
 import ErrorState from './ui/ErrorState'
@@ -46,6 +46,7 @@ function Portfolio() {
   const [deletingId, setDeletingId] = useState(null)
   const [rowError, setRowError] = useState('')
   const [watchlistState, setWatchlistState] = useState({})
+  const [alertCounts, setAlertCounts] = useState({})
 
   const loadPortfolio = async (signal) => {
     setLoading(true)
@@ -67,6 +68,27 @@ function Portfolio() {
     loadPortfolio(controller.signal)
     return () => controller.abort()
   }, [])
+
+  const tickerKey = [...new Set(holdings.map((h) => h.ticker))].join(',')
+
+  /** One aggregate call for every held ticker's alert count - informational only, see Portfolio Integration in the sprint brief (no recommendations, just "N holdings require attention"). */
+  useEffect(() => {
+    const controller = new AbortController()
+    const load = async () => {
+      if (!tickerKey) {
+        setAlertCounts({})
+        return
+      }
+      try {
+        const data = await fetchJson(`/api/alerts/counts?tickers=${encodeURIComponent(tickerKey)}`, undefined, controller.signal)
+        setAlertCounts(data.counts || {})
+      } catch (requestError) {
+        if (requestError.name !== 'AbortError') setAlertCounts({})
+      }
+    }
+    load()
+    return () => controller.abort()
+  }, [tickerKey])
 
   const openAddForm = () => {
     setEditingHolding(null)
@@ -181,6 +203,25 @@ function Portfolio() {
   return (
     <div className="space-y-6">
       <SectionHeader title="Portfolio" description="Investments you own - cost basis, value, and gain/loss." action={addHoldingButton} />
+
+      {Object.values(alertCounts).filter((count) => count > 0).length > 0 && (
+        <Link
+          to="/alerts"
+          className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-ink-secondary transition-colors hover:bg-warning/20"
+        >
+          <span className="flex items-center gap-2">
+            <Bell className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+            <span>
+              <span className="font-semibold text-ink">
+                {Object.values(alertCounts).filter((count) => count > 0).length} holding
+                {Object.values(alertCounts).filter((count) => count > 0).length === 1 ? '' : 's'}
+              </span>{' '}
+              require attention.
+            </span>
+          </span>
+          <span className="shrink-0 font-medium text-brand-600">View Alerts →</span>
+        </Link>
+      )}
 
       {holdings.length === 0 ? (
         <EmptyState

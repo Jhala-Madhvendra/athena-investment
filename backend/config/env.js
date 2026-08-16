@@ -64,6 +64,16 @@ const env = {
     // How long a stored article is kept before Mongo's TTL index expires it
     // (backend/news/news.model.js). Not an archive - see NewsCaching.md.
     newsRetentionDays: Number(process.env.NEWS_RETENTION_DAYS) || 90,
+    // Intelligent Alerts (Sprint 11) - how long an Alert is kept before
+    // Mongo's TTL index expires it (backend/alerts/alert.model.js). Matches
+    // newsRetentionDays: a 90-day-old alert has no decision value once
+    // newer financials/prices have superseded it. Not an archive - see
+    // research/engineering/AlertLifecycle.md.
+    alertRetentionDays: Number(process.env.ALERT_RETENTION_DAYS) || 90,
+    // POST /api/alerts/monitor is the single most expensive endpoint in the
+    // app (iterates every tracked ticker across five rule categories), so
+    // it gets its own, tighter rate-limit cap - see middleware/rateLimit.js.
+    alertMonitorRateLimitMax: Number(process.env.ALERT_MONITOR_RATE_LIMIT_MAX) || 10,
 };
 
 if (env.isProduction && env.frontendOrigins.length === 0) {

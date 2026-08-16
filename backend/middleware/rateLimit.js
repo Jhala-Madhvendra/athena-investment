@@ -23,4 +23,17 @@ const expensiveLimiter = rateLimit({
     message: { message: "Too many requests to this endpoint. Please slow down and try again shortly." },
 });
 
-module.exports = { generalLimiter, expensiveLimiter };
+// Stricter limit for POST /api/alerts/monitor - it iterates every ticker a
+// user tracks across Market/Financial/Business/Valuation/News/Portfolio
+// rules, so it gets its own, tighter budget rather than sharing
+// expensiveLimiter's (which many cheaper fan-out endpoints also use).
+const monitorLimiter = rateLimit({
+    windowMs: env.rateLimitWindowMs,
+    max: env.alertMonitorRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipInTest,
+    message: { message: "Too many monitoring requests. Please wait before checking for new alerts again." },
+});
+
+module.exports = { generalLimiter, expensiveLimiter, monitorLimiter };

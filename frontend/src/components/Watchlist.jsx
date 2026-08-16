@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, ExternalLink, Search, ListPlus, Sparkles } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, Search, ListPlus, Sparkles, Bell } from 'lucide-react'
 import Card from './ui/Card'
 import Skeleton from './ui/Skeleton'
 import ErrorState from './ui/ErrorState'
@@ -43,6 +43,8 @@ function Watchlist() {
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insightsError, setInsightsError] = useState('')
 
+  const [alertCounts, setAlertCounts] = useState({})
+
   const loadWatchlist = async (signal) => {
     setLoading(true)
     setError('')
@@ -63,6 +65,27 @@ function Watchlist() {
     load()
     return () => controller.abort()
   }, [])
+
+  const tickerKey = (watchlist.companies || []).map((c) => c.ticker).join(',')
+
+  /** One aggregate call for every tracked ticker's alert count - see backend/alerts/alert.repository.js's countByTicker. Compact indicator only, never full alert messages here (see Watchlist Integration in the sprint brief). */
+  useEffect(() => {
+    const controller = new AbortController()
+    const load = async () => {
+      if (!tickerKey) {
+        setAlertCounts({})
+        return
+      }
+      try {
+        const data = await fetchJson(`/api/alerts/counts?tickers=${encodeURIComponent(tickerKey)}`, undefined, controller.signal)
+        setAlertCounts(data.counts || {})
+      } catch (requestError) {
+        if (requestError.name !== 'AbortError') setAlertCounts({})
+      }
+    }
+    load()
+    return () => controller.abort()
+  }, [tickerKey])
 
   const handleAdd = async (event) => {
     event.preventDefault()
@@ -281,6 +304,7 @@ function Watchlist() {
                   <th className="px-3 py-3">DCF Value</th>
                   <th className="px-3 py-3">Valuation Gap</th>
                   <th className="px-3 py-3">Latest Event</th>
+                  <th className="px-3 py-3">Alerts</th>
                   <th className="px-3 py-3">Last Updated</th>
                   <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
@@ -335,18 +359,33 @@ function Watchlist() {
                       <td className="px-3 py-3 tabular-nums" style={{ color: gapTier.hex }}>
                         {row.dcf?.available ? formatPercent(row.dcf.valuationGapPercent) : '—'}
                       </td>
-                      <td className="px-3 py-3 max-w-[220px]">
+                      <td className="w-[220px] max-w-[220px] px-3 py-3">
                         {row.latestEvent ? (
                           <button
                             type="button"
                             onClick={() => navigate(`/financials/${encodeURIComponent(row.ticker)}/news`)}
-                            className="text-left hover:underline"
+                            className="block w-full text-left hover:underline"
                             title={row.latestEvent.title}
                           >
                             <span className="block truncate text-xs text-ink">{row.latestEvent.title}</span>
                             <span className="text-xs text-ink-muted">
                               {row.latestEvent.category} · {formatRelativeTime(row.latestEvent.publishedAt)}
                             </span>
+                          </button>
+                        ) : (
+                          <span className="text-ink-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        {alertCounts[row.ticker] > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/alerts?ticker=${encodeURIComponent(row.ticker)}`)}
+                            className="inline-flex items-center gap-1 rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-500/20"
+                            title={`View ${row.ticker} alerts`}
+                          >
+                            <Bell className="h-3 w-3" aria-hidden="true" />
+                            {alertCounts[row.ticker]} alert{alertCounts[row.ticker] === 1 ? '' : 's'}
                           </button>
                         ) : (
                           <span className="text-ink-muted">—</span>

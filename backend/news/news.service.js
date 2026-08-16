@@ -240,12 +240,40 @@ const getRecentArticlesForContext = async (ticker, limit) => {
     }
 };
 
+/**
+ * Stored articles for `ticker` published since `sinceDate`, restricted to
+ * `categories` - DB-only, never triggers a provider call. Used by the Alert
+ * Engine's News rules (backend/alerts/alert.engine.js) to find important
+ * events without duplicating this codebase's only classification/dedup
+ * pipeline - articles are already deduplicated at write time (see
+ * news.deduplicator.js), so no additional merging is needed here. Never
+ * throws - a lookup failure yields no news alerts for this ticker, not a
+ * failed monitoring pass.
+ */
+const getImportantArticlesSince = async (ticker, sinceDate, categories) => {
+    const normalizedTicker = normalizeTicker(ticker);
+    try {
+        return await NewsArticle.find({
+            tickers: normalizedTicker,
+            category: { $in: categories },
+            publishedAt: { $gte: sinceDate },
+        })
+            .sort({ publishedAt: -1 })
+            .select("title description category publishedAt url source")
+            .lean();
+    } catch (error) {
+        logger.warn({ err: error, ticker: normalizedTicker }, "Could not load important news for alert monitoring");
+        return [];
+    }
+};
+
 module.exports = {
     getNews,
     refreshNews,
     getCategorySummary,
     getLatestStoredArticle,
     getRecentArticlesForContext,
+    getImportantArticlesSince,
     CompanyNotFoundError,
     DEFAULT_ARTICLE_LIMIT,
 };

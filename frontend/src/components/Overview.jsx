@@ -11,6 +11,7 @@ import CompanyHeader from './dashboard/CompanyHeader';
 import HealthScoreCard from './dashboard/HealthScoreCard';
 import BusinessPerformanceRow from './dashboard/BusinessPerformanceRow';
 import InsightCard from './dashboard/InsightCard';
+import RecentAlerts from './dashboard/RecentAlerts';
 import PerformanceCards from './market/PerformanceCards';
 import { formatValue } from '../lib/statementTabs';
 
@@ -136,6 +137,9 @@ function Overview() {
           quoteError={quote.error}
         />
       )}
+
+      {/* Recent Alerts */}
+      <RecentAlerts ticker={ticker} />
 
       {/* Financial Health */}
       <Card

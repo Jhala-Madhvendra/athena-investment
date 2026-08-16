@@ -135,6 +135,27 @@ export function mockNewsFetch(responses) {
   });
 }
 
+/**
+ * Routes a mocked global.fetch for the Earnings tab - a single
+ * GET /api/earnings/:ticker endpoint, so this just resolves/rejects every
+ * call with the same response.
+ *
+ * @param {object|{__error:true}} response - a JSON body (200 OK) or
+ *   errorResponse(...). Pass `undefined` to leave the request hanging
+ *   (loading state).
+ */
+export function mockEarningsFetch(response) {
+  globalThis.fetch = vi.fn(() => {
+    if (response === undefined) {
+      return new Promise(() => {}); // never resolves - simulates still-loading
+    }
+    if (response && response.__error) {
+      return Promise.resolve(jsonResponse(response.status ?? 500, response.body ?? { message: 'Request failed.' }));
+    }
+    return Promise.resolve(jsonResponse(200, response));
+  });
+}
+
 export function mockValuationFetch(responses) {
   const resolveFor = (url) => {
     if (url.includes('/dcf/defaults')) return responses.defaults;

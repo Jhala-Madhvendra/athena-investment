@@ -7,6 +7,7 @@ import {
   Activity,
   LineChart,
   Calculator,
+  TrendingUp,
   Sparkles,
   Search,
   Loader2,
@@ -14,7 +15,9 @@ import {
   ListChecks,
   Wallet,
   Newspaper,
+  Bell,
 } from 'lucide-react';
+import { fetchJson } from '../../lib/api';
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -22,6 +25,7 @@ const SEARCH_DEBOUNCE_MS = 250;
 const GLOBAL_NAV_ITEMS = [
   { key: 'watchlist', label: 'Watchlist', to: '/watchlist', icon: ListChecks },
   { key: 'portfolio', label: 'Portfolio', to: '/portfolio', icon: Wallet },
+  { key: 'alerts', label: 'Alerts', to: '/alerts', icon: Bell, badgeKey: 'alerts' },
 ];
 
 const NAV_ITEMS = [
@@ -31,6 +35,7 @@ const NAV_ITEMS = [
   { key: 'business-analysis', label: 'Business Analysis', to: 'business-analysis/overview', icon: Activity },
   { key: 'market-intelligence', label: 'Market Intelligence', to: 'market-intelligence', icon: LineChart },
   { key: 'valuation', label: 'Valuation', to: 'valuation', icon: Calculator },
+  { key: 'earnings', label: 'Earnings', to: 'earnings', icon: TrendingUp },
   { key: 'news', label: 'News & Events', to: 'news', icon: Newspaper },
   { key: 'ai-research', label: 'AI Research', to: 'ai-research', icon: Sparkles },
 ];
@@ -273,6 +278,25 @@ function Sidebar({ mobileOpen = false, onClose }) {
   const match = useMatch('/financials/:ticker/*');
   const ticker = match?.params?.ticker || 'AAPL';
 
+  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
+
+  // Fetched once on mount, not polled - Sprint 11 deliberately defers push
+  // notifications; the badge reflects "as of your last visit," refreshed
+  // again whenever the app reloads or the user revisits the Alert Center.
+  useEffect(() => {
+    let cancelled = false;
+    fetchJson('/api/alerts/unread-count')
+      .then((data) => {
+        if (!cancelled) setUnreadAlertCount(data.count || 0);
+      })
+      .catch(() => {
+        // Non-critical - the badge just stays hidden if this fails.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const railContent = (
     <div className="flex h-full flex-col gap-6 overflow-y-auto pt-6 pb-4">
       <div className="flex items-center justify-between px-4">
@@ -298,6 +322,7 @@ function Sidebar({ mobileOpen = false, onClose }) {
         <ul className="mb-4 space-y-0.5 border-b border-navy-border pb-4">
           {GLOBAL_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
+            const badgeCount = item.badgeKey === 'alerts' ? unreadAlertCount : 0;
             return (
               <li key={item.key}>
                 <NavLink
@@ -312,7 +337,12 @@ function Sidebar({ mobileOpen = false, onClose }) {
                   }
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{item.label}</span>
+                  <span className="flex-1 truncate">{item.label}</span>
+                  {badgeCount > 0 && (
+                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs font-semibold text-white">
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                  )}
                 </NavLink>
               </li>
             );
