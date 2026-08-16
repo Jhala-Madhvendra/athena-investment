@@ -109,4 +109,41 @@ describe('Industry - successful render', () => {
 
     expect(await screen.findByText('Comps Stub Rendered')).toBeInTheDocument();
   });
+
+  it('re-fetches the benchmark and peers (without showing the full-page skeleton) after "Find More Companies" imports a company', async () => {
+    let industryFetchCount = 0;
+    mockIndustryFetch({
+      industry: industryResponseFixture,
+      peers: industryPeersFixture,
+      discover: {
+        classificationLevel: 'industry',
+        classificationValue: 'Software',
+        candidates: [{ ticker: 'ORCL', name: 'Oracle Corporation', exchange: 'NYQ', marketCap: 500000000000 }],
+        limitation: 'note',
+        generatedAt: new Date().toISOString(),
+      },
+      discoverImport: { imported: ['ORCL'], partial: [], failed: [], generatedAt: new Date().toISOString() },
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn((...args) => {
+      if (`${args[0]}`.includes('/api/industry/') && !`${args[0]}`.includes('/discover') && !`${args[0]}`.includes('/peers')) {
+        industryFetchCount += 1;
+      }
+      return originalFetch(...args);
+    });
+
+    renderIndustry();
+    await screen.findByText('Software');
+    expect(industryFetchCount).toBe(1);
+
+    await userEvent.click(screen.getByRole('button', { name: /Find More Companies/i }));
+    await screen.findByText(/Oracle Corporation/);
+    await userEvent.click(screen.getByRole('checkbox', { name: /Select Oracle/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Add Selected \(1\)/i }));
+
+    expect(await screen.findByText(/Added 1 company: ORCL/)).toBeInTheDocument();
+    // The main benchmark card is still on screen (not replaced by the loading skeleton) while refetching.
+    expect(screen.getByText(/Industry benchmark based on 4 tracked companies/)).toBeInTheDocument();
+    expect(industryFetchCount).toBe(2); // refetched once after import
+  });
 });

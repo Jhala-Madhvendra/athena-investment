@@ -1,4 +1,10 @@
-const { formatIndustryResponse, formatPeersResponse, formatMetricsResponse } = require("../industry.formatter");
+const {
+    formatIndustryResponse,
+    formatPeersResponse,
+    formatMetricsResponse,
+    formatDiscoveryResponse,
+    formatImportResponse,
+} = require("../industry.formatter");
 
 const benchmarkEntry = (overrides = {}) => ({
     metric: "operatingMargin",
@@ -104,5 +110,34 @@ describe("industry.formatter.formatMetricsResponse", () => {
     it("flattens the metric catalog into an array with the metric key attached", () => {
         const response = formatMetricsResponse({ ticker: "AAPL", metrics: { pe: { label: "P/E", unit: "multiple", category: "valuation", type: "market" } } });
         expect(response.metrics).toEqual([{ metric: "pe", label: "P/E", unit: "multiple", category: "valuation", type: "market" }]);
+    });
+});
+
+describe("industry.formatter.formatDiscoveryResponse", () => {
+    it("shapes candidates and carries the not-yet-reviewed limitation notice", () => {
+        const response = formatDiscoveryResponse({
+            classificationLevel: "industry",
+            classificationValue: "Consumer Electronics",
+            candidates: [{ ticker: "SONY", name: "Sony Group Corporation", exchange: "TYO", marketCap: 1000, volume: 123 }],
+        });
+
+        expect(response.classificationLevel).toBe("industry");
+        expect(response.candidates).toEqual([{ ticker: "SONY", name: "Sony Group Corporation", exchange: "TYO", marketCap: 1000 }]);
+        expect(response.limitation).toMatch(/not yet tracked/i);
+        expect(response.limitation).toMatch(/not.*curated or verified/i);
+    });
+});
+
+describe("industry.formatter.formatImportResponse", () => {
+    it("buckets results into imported, partial, and failed", () => {
+        const response = formatImportResponse([
+            { ticker: "SONY", companyImported: true, financialsImported: true, error: null },
+            { ticker: "LG", companyImported: true, financialsImported: false, error: "Company imported, but financial statements could not be imported: no data." },
+            { ticker: "ZZZZ", companyImported: false, financialsImported: false, error: "Company could not be found." },
+        ]);
+
+        expect(response.imported).toEqual(["SONY"]);
+        expect(response.partial.map((r) => r.ticker)).toEqual(["LG"]);
+        expect(response.failed.map((r) => r.ticker)).toEqual(["ZZZZ"]);
     });
 });

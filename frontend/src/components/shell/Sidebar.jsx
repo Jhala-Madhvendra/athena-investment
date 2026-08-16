@@ -19,6 +19,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { fetchJson } from '../../lib/api';
+import { subscribeToAlertsChanged } from '../../lib/alertsBadge';
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -282,20 +283,33 @@ function Sidebar({ mobileOpen = false, onClose }) {
 
   const [unreadAlertCount, setUnreadAlertCount] = useState(0);
 
-  // Fetched once on mount, not polled - Sprint 11 deliberately defers push
-  // notifications; the badge reflects "as of your last visit," refreshed
-  // again whenever the app reloads or the user revisits the Alert Center.
+  // Not polled - Sprint 11 deliberately defers push notifications. Instead
+  // of a fetch-once-on-mount that goes stale the moment the user reads or
+  // dismisses an alert (Sidebar never remounts as routes change, so it
+  // would otherwise never learn about that), this re-fetches on mount AND
+  // whenever the Alerts page signals a change via alertsBadge.js - marking
+  // read, dismissing, or finding new alerts via "Check for New Alerts" all
+  // notify. Always re-fetches the real count from the server rather than
+  // trusting a locally-computed delta, so it can't drift out of sync.
   useEffect(() => {
     let cancelled = false;
-    fetchJson('/api/alerts/unread-count')
-      .then((data) => {
-        if (!cancelled) setUnreadAlertCount(data.count || 0);
-      })
-      .catch(() => {
-        // Non-critical - the badge just stays hidden if this fails.
-      });
+
+    const loadUnreadCount = () => {
+      fetchJson('/api/alerts/unread-count')
+        .then((data) => {
+          if (!cancelled) setUnreadAlertCount(data.count || 0);
+        })
+        .catch(() => {
+          // Non-critical - the badge just stays at its last known value if this fails.
+        });
+    };
+
+    loadUnreadCount();
+    const unsubscribe = subscribeToAlertsChanged(loadUnreadCount);
+
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 

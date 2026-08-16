@@ -130,6 +130,60 @@ class YahooFinanceProvider extends FinancialDataProvider {
     async getAuthentication() {
         return getYahooAuthentication();
     }
+
+    /**
+     * Queries Yahoo's unofficial equity screener for companies sharing a
+     * sector/industry classification - the same reverse-engineered,
+     * cookie+crumb-authenticated pattern already used for getCompanyProfile
+     * and searchTickerByName, just against a different Yahoo endpoint.
+     * Prefers `industry` (finer-grained) and falls back to `sector` only
+     * when no industry classification is available, mirroring
+     * industry.peerDiscovery.js's own industry-then-sector fallback.
+     *
+     * @param {{industry: string|null, sector: string|null, limit?: number}} params
+     * @returns {Promise<Array<{ticker, name, exchange, marketCap}>>} deduplicated candidates (see yahooFinance.mapper.mapYahooScreenerCandidates)
+     */
+    async searchCompaniesByClassification({ industry, sector, limit = 50 }) {
+        const classificationField = industry ? "industry" : sector ? "sector" : null;
+        const classificationValue = industry || sector;
+
+        if (!classificationField) {
+            return [];
+        }
+
+        const { cookie, crumb } = await this.getAuthentication();
+        const url = new URL("https://query1.finance.yahoo.com/v1/finance/screener");
+        url.searchParams.set("crumb", crumb);
+        url.searchParams.set("lang", "en-US");
+        url.searchParams.set("region", "US");
+
+        const requestBody = {
+            size: limit,
+            offset: 0,
+            sortField: "intradaymarketcap",
+            sortType: "desc",
+            quoteType: "EQUITY",
+            query: { operator: "eq", operands: [classificationField, classificationValue] },
+        };
+
+        const response = await fetchWithTimeout(url, {
+            method: "POST",
+            headers: {
+                "User-Agent": "Mozilla/5.0 AthenaFinance/1.0",
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                Cookie: cookie,
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Yahoo Finance screener request failed with status ${response.status}.`);
+        }
+
+        const yahooResponse = await response.json();
+        return mapYahooFinanceCompany.mapYahooScreenerCandidates(yahooResponse);
+    }
 }
 
 module.exports = YahooFinanceProvider;

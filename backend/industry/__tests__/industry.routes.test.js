@@ -5,6 +5,7 @@ jest.mock("../industry.service", () => ({
     getIndustryIntelligence: jest.fn(),
     getPeerSuggestions: jest.fn(),
     getSupportedMetrics: jest.fn(),
+    invalidateUniverseCache: jest.fn(),
     NoFinancialDataError: class NoFinancialDataError extends Error {
         constructor(ticker) {
             super(`No financial statements are available for ${ticker}.`);
@@ -13,8 +14,14 @@ jest.mock("../industry.service", () => ({
     },
 }));
 jest.mock("../../services/company.service", () => ({ resolveTicker: jest.fn() }));
+jest.mock("../industry.discovery", () => ({
+    discoverCandidates: jest.fn(),
+    importSelectedCompanies: jest.fn(),
+    DISCOVERY_LIMIT: 20,
+}));
 
 const industryService = require("../industry.service");
+const industryDiscovery = require("../industry.discovery");
 const companyService = require("../../services/company.service");
 const industryRoutes = require("../industry.routes");
 
@@ -90,6 +97,78 @@ describe("GET /api/industry/:ticker/peers", () => {
         expect(response.status).toBe(200);
         expect(industryService.getPeerSuggestions).toHaveBeenCalledWith("AAPL", 3);
         expect(response.body.limitation).toMatch(/not.*canonical peer set/i);
+    });
+});
+
+describe("GET /api/industry/:ticker/discover", () => {
+    it("returns 404 when the ticker cannot be resolved to a company", async () => {
+        companyService.resolveTicker.mockResolvedValue(null);
+
+        const response = await request(app).get("/api/industry/ZZZZ/discover");
+
+        expect(response.status).toBe(404);
+        expect(industryDiscovery.discoverCandidates).not.toHaveBeenCalled();
+    });
+
+    it("returns discovered candidates for a resolved ticker", async () => {
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+        industryDiscovery.discoverCandidates.mockResolvedValue({
+            classificationLevel: "industry",
+            classificationValue: "Consumer Electronics",
+            candidates: [{ ticker: "SONY", name: "Sony Group Corporation", exchange: "TYO", marketCap: 1000 }],
+        });
+
+        const response = await request(app).get("/api/industry/AAPL/discover");
+
+        expect(response.status).toBe(200);
+        expect(response.body.classificationValue).toBe("Consumer Electronics");
+        expect(response.body.candidates).toHaveLength(1);
+    });
+
+    it("propagates a service-level error (e.g. no classification available) with its status code", async () => {
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+        const error = new Error("AAPL has no sector or industry classification.");
+        error.statusCode = 422;
+        industryDiscovery.discoverCandidates.mockRejectedValue(error);
+
+        const response = await request(app).get("/api/industry/AAPL/discover");
+
+        expect(response.status).toBe(422);
+    });
+});
+
+describe("POST /api/industry/:ticker/discover/import", () => {
+    it("rejects an empty tickers array before calling the service", async () => {
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+
+        const response = await request(app).post("/api/industry/AAPL/discover/import").send({ tickers: [] });
+
+        expect(response.status).toBe(422);
+        expect(industryDiscovery.importSelectedCompanies).not.toHaveBeenCalled();
+    });
+
+    it("imports the selected tickers, invalidates the benchmark cache, and returns a bucketed result", async () => {
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+        industryDiscovery.importSelectedCompanies.mockResolvedValue([
+            { ticker: "SONY", companyImported: true, financialsImported: true, error: null },
+            { ticker: "ZZZZ", companyImported: false, financialsImported: false, error: "Company could not be found." },
+        ]);
+
+        const response = await request(app).post("/api/industry/AAPL/discover/import").send({ tickers: ["sony", "zzzz"] });
+
+        expect(response.status).toBe(200);
+        expect(industryDiscovery.importSelectedCompanies).toHaveBeenCalledWith(["SONY", "ZZZZ"]);
+        expect(industryService.invalidateUniverseCache).toHaveBeenCalledTimes(1);
+        expect(response.body.imported).toEqual(["SONY"]);
+        expect(response.body.failed.map((r) => r.ticker)).toEqual(["ZZZZ"]);
+    });
+
+    it("does not invalidate the cache when validation fails", async () => {
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+
+        await request(app).post("/api/industry/AAPL/discover/import").send({ tickers: ["not a ticker!"] });
+
+        expect(industryService.invalidateUniverseCache).not.toHaveBeenCalled();
     });
 });
 

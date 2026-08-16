@@ -9,6 +9,7 @@ import EmptyState from './ui/EmptyState'
 import AlertCard from './alerts/AlertCard'
 import AlertFilters from './alerts/AlertFilters'
 import { fetchJson } from '../lib/api'
+import { notifyAlertsChanged } from '../lib/alertsBadge'
 
 const PAGE_LIMIT = 20
 
@@ -89,6 +90,7 @@ function Alerts() {
     setUnreadCount((count) => Math.max(0, count - 1))
     try {
       await fetchJson(`/api/alerts/${alertId}/read`, { method: 'PATCH' })
+      notifyAlertsChanged() // tells Sidebar's badge (a sibling, not a child - see alertsBadge.js) to re-fetch
     } catch {
       // Best-effort - a failed read-state sync isn't worth interrupting the user for.
     }
@@ -101,6 +103,7 @@ function Alerts() {
       setAlerts((current) => current.filter((alert) => alert._id !== alertId))
       setTotal((count) => Math.max(0, count - 1))
       loadUnreadCount()
+      notifyAlertsChanged() // tells Sidebar's badge (a sibling, not a child - see alertsBadge.js) to re-fetch
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -122,6 +125,7 @@ function Alerts() {
       )
       setPage(1)
       await Promise.all([loadAlerts(), loadUnreadCount()])
+      notifyAlertsChanged() // new alerts may have been created - tells Sidebar's badge to re-fetch too
     } catch (requestError) {
       setMonitorError(requestError.message)
     } finally {

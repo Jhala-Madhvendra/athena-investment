@@ -4,6 +4,7 @@ const helmet = require("helmet");
 const pinoHttp = require("pino-http");
 
 const env = require("./config/env");
+const { ALLOWED_CORS_METHODS } = require("./config/corsOptions");
 const logger = require("./utils/logger");
 const { sendServiceError } = require("./utils/httpErrors");
 const { generalLimiter } = require("./middleware/rateLimit");
@@ -43,10 +44,12 @@ app.use(
             }
             return callback(new Error("Not allowed by CORS"));
         },
-        // PUT/DELETE added for Sprint 9's Watchlist/Portfolio mutation endpoints
-        // (editing/removing a holding or watchlist entry); GET/POST unchanged
-        // for every Sprint 1-8 route.
-        methods: ["GET", "POST", "PUT", "DELETE"],
+        // See config/corsOptions.js for what's listed and why - kept in its
+        // own module (not inlined here) so backend/__tests__/corsMethods.test.js
+        // can verify it covers every route's actual HTTP method without
+        // booting this whole server file (which connects to MongoDB and
+        // calls app.listen() as a side effect of being required).
+        methods: ALLOWED_CORS_METHODS,
         credentials: false,
     })
 );

@@ -205,10 +205,25 @@ const getSupportedMetrics = async (rawTicker) => {
     return { ticker: target.ticker, metrics: METRIC_DEFINITIONS };
 };
 
+/**
+ * Clears every cached universe bundle. Called after "Find More Companies"
+ * imports new companies - the cheap, safe option over trying to compute
+ * exactly which single `level:key` entry a newly-imported company's
+ * industry/sector affects (a company can plausibly join more than one
+ * cached entry, e.g. both an industry-level and a sector-level fallback
+ * cache built for different target companies). The cache is small and
+ * inexpensive to rebuild, so clearing all of it trades a little extra
+ * recomputation for guaranteed correctness after an import.
+ */
+const invalidateUniverseCache = () => {
+    universeCache.clear();
+};
+
 module.exports = {
     getIndustryIntelligence,
     getPeerSuggestions,
     getSupportedMetrics,
+    invalidateUniverseCache,
     NoFinancialDataError,
     INDUSTRY_CACHE_TTL_MS,
 };

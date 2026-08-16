@@ -4,6 +4,8 @@
 
 `backend/industry/industry.peerDiscovery.js`'s `rankByMarketCapProximity()` ranks the reference universe (see `ReferenceUniverse.md`) by closeness to the target's market cap, producing "Potential Peers" — suggestions surfaced on the Industry page and exposed via `GET /api/industry/:ticker/peers`. It is deliberately distinct from, and does not modify, Sprint 7's `comps.peerSelector.js`.
 
+**Not to be confused with** `industry.discovery.js` ("Find More Companies," `research/engineering/IndustryCompanyDiscovery.md`) — this module (`industry.peerDiscovery.js`) only ever *ranks companies already in Athena's database*; it never talks to an external provider. `industry.discovery.js` is the opposite: it *finds companies not yet in Athena's database* via a live Yahoo Finance search, specifically to grow the pool `industry.peerDiscovery.js` (and `industry.benchmark.js`) can later rank/benchmark. The two are sequential, not overlapping: discover (external, opt-in) → import → rank (internal, automatic).
+
 ## Why we use it
 
 Sprint 7 established that Athena has no genuine business-model-similarity scoring engine (see `research/finance/PeerSelection.md`), and deliberately kept Comps peer selection entirely user-controlled as a result. Industry Intelligence needed a lighter-weight, ranked shortlist for a different purpose — narrowing an already-computed reference universe down to a handful of the most plausible comps candidates — without either duplicating Comps' "browse everything" behavior or overstepping into an unearned "these are your comps" recommendation.

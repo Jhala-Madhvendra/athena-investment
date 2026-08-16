@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Factory } from 'lucide-react';
 import Card from './ui/Card';
@@ -10,6 +10,7 @@ import IndustryComparisonTable from './industry/IndustryComparisonTable';
 import StrengthsWeaknesses from './industry/StrengthsWeaknesses';
 import PositioningBars from './industry/PositioningBars';
 import PotentialPeersTable from './industry/PotentialPeersTable';
+import FindMoreCompanies from './industry/FindMoreCompanies';
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -44,42 +45,73 @@ function Industry() {
   const [peersData, setPeersData] = useState(null);
   const [peersError, setPeersError] = useState('');
 
+  const loadIndustryData = useCallback(
+    async (signal) => {
+      try {
+        const result = await fetchJson(`${apiBaseUrl}/api/industry/${encodeURIComponent(ticker)}`, signal);
+        setData(result);
+        setError('');
+      } catch (requestError) {
+        if (requestError.name !== 'AbortError') {
+          setError(requestError.message);
+        }
+      }
+    },
+    [ticker]
+  );
+
+  const loadPeersData = useCallback(
+    async (signal) => {
+      try {
+        const peers = await fetchJson(`${apiBaseUrl}/api/industry/${encodeURIComponent(ticker)}/peers`, signal);
+        setPeersData(peers);
+        setPeersError('');
+      } catch (requestError) {
+        if (requestError.name !== 'AbortError') {
+          setPeersError(requestError.message);
+        }
+      }
+    },
+    [ticker]
+  );
+
   useEffect(() => {
     const controller = new AbortController();
 
-    const load = async () => {
+    const load = () => {
       setLoading(true);
       setError('');
       setData(null);
       setPeersData(null);
       setPeersError('');
 
-      try {
-        const result = await fetchJson(`${apiBaseUrl}/api/industry/${encodeURIComponent(ticker)}`, controller.signal);
-        setData(result);
-      } catch (requestError) {
-        if (requestError.name !== 'AbortError') {
-          setError(requestError.message);
-        }
-      } finally {
+      // The main skeleton clears as soon as the primary benchmark loads (or
+      // fails) - peers is a secondary section with its own independent
+      // loading/error state (see the Potential Peers card below), and must
+      // never block the main page on a slow or hanging peers request.
+      loadIndustryData(controller.signal).finally(() => {
         if (!controller.signal.aborted) {
           setLoading(false);
         }
-      }
-
-      try {
-        const peers = await fetchJson(`${apiBaseUrl}/api/industry/${encodeURIComponent(ticker)}/peers`, controller.signal);
-        setPeersData(peers);
-      } catch (requestError) {
-        if (requestError.name !== 'AbortError') {
-          setPeersError(requestError.message);
-        }
-      }
+      });
+      loadPeersData(controller.signal);
     };
 
     load();
     return () => controller.abort();
-  }, [ticker]);
+  }, [ticker, loadIndustryData, loadPeersData]);
+
+  /**
+   * "Find More Companies" imports new companies in the background (see
+   * FindMoreCompanies.jsx) - refetches both the benchmark and peers in
+   * place, WITHOUT flipping `loading` back to true, so the panel (and its
+   * just-shown import result) stays mounted and visible instead of being
+   * replaced by the full-page skeleton.
+   */
+  const handleImported = () => {
+    loadIndustryData();
+    loadPeersData();
+  };
 
   /**
    * Pre-fills the Comps peer picker with this suggestion (navigation state
@@ -134,6 +166,10 @@ function Industry() {
           <StatCard label="Benchmark Universe" value={`${data.universe.size} ${data.universe.size === 1 ? 'company' : 'companies'}`} sublabel={data.universe.level !== 'none' ? `${data.universe.level} level` : undefined} />
         </div>
         <p className="mt-4 text-xs leading-relaxed text-ink-muted">{data.universe.note}</p>
+
+        <div className="mt-4">
+          <FindMoreCompanies ticker={ticker} onImported={handleImported} />
+        </div>
       </Card>
 
       <Card title="Company vs Industry" eyebrow="Median-based benchmark">

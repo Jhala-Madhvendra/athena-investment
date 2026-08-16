@@ -22,7 +22,7 @@ Sell-side and buy-side analysts routinely build "comp sheets" grouping a company
 
 ## 6. Limitations
 
-- **The reference universe is Athena's own tracked-company database, not a market-wide industry census.** A company's true industry may have hundreds of participants; Athena can only benchmark against the ones a user has previously searched or imported.
+- **The reference universe is Athena's own tracked-company database, not a market-wide industry census.** A company's true industry may have hundreds of participants; Athena can only automatically benchmark against the ones a user has previously searched or imported. A user can *deliberately* grow this universe via "Find More Companies" (a live external classification search — see `research/engineering/IndustryCompanyDiscovery.md`), but this is an explicit, opt-in action, never something Athena does silently as part of computing a benchmark.
 - **Sector/industry labels are free-text strings from Yahoo Finance, not a formal taxonomy (no GICS/ICB codes).** Two companies can share an industry label while differing meaningfully in business model — the same limitation `PeerSelection.md` documents for Sprint 7's peer selection.
 - **A metric with an insufficient sample size is reported as unavailable, not computed anyway** — see `FinancialPercentiles.md` for the minimum-sample-size rule.
 

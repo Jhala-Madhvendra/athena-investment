@@ -157,16 +157,18 @@ export function mockEarningsFetch(response) {
 }
 
 /**
- * Routes a mocked global.fetch for the Industry tab's two endpoints.
- * Checked most-specific first, since `/peers` contains the base
- * `/api/industry/:ticker` path.
+ * Routes a mocked global.fetch for the Industry tab's endpoints. Checked
+ * most-specific first, since `/discover/import`, `/discover`, and `/peers`
+ * all contain the base `/api/industry/:ticker` path.
  *
- * @param {object} responses - { industry, peers }
+ * @param {object} responses - { industry, peers, discover, discoverImport }
  *   Each value is either a JSON body (200 OK) or { status, body } for an
  *   error (see errorResponse). `undefined` leaves that endpoint hanging.
  */
 export function mockIndustryFetch(responses) {
   const resolveFor = (url) => {
+    if (url.includes('/discover/import')) return responses.discoverImport;
+    if (url.includes('/discover')) return responses.discover;
     if (url.includes('/peers')) return responses.peers;
     return responses.industry;
   };

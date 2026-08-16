@@ -10,6 +10,9 @@
  */
 
 const { SUGGESTED_PEERS_LIMIT } = require("./industry.peerDiscovery");
+const { DISCOVERY_LIMIT } = require("./industry.discovery");
+
+const TICKER_PATTERN = /^[A-Za-z0-9.-]+$/;
 
 /**
  * @param {unknown} rawLimit - the raw `limit` query param (string | undefined)
@@ -33,4 +36,40 @@ const validatePeersLimit = (rawLimit) => {
     return { isValid: true, errors: [], limit: parsed };
 };
 
-module.exports = { validatePeersLimit };
+/**
+ * Validates the `tickers` array for POST /:ticker/discover/import - the
+ * user's selection from the "Find More Companies" checkbox list.
+ * @param {unknown} rawTickers
+ * @returns {{isValid: boolean, errors: string[], tickers: string[]}}
+ */
+const validateDiscoveryImportTickers = (rawTickers) => {
+    if (!Array.isArray(rawTickers) || rawTickers.length === 0) {
+        return { isValid: false, errors: ["At least one ticker is required."], tickers: [] };
+    }
+
+    if (rawTickers.length > DISCOVERY_LIMIT) {
+        return {
+            isValid: false,
+            errors: [`No more than ${DISCOVERY_LIMIT} tickers may be imported at once - got ${rawTickers.length}.`],
+            tickers: [],
+        };
+    }
+
+    const invalidTickers = rawTickers.filter(
+        (ticker) => typeof ticker !== "string" || !TICKER_PATTERN.test(ticker.trim())
+    );
+
+    if (invalidTickers.length > 0) {
+        return {
+            isValid: false,
+            errors: [`The following tickers are not validly formatted: ${JSON.stringify(invalidTickers)}.`],
+            tickers: [],
+        };
+    }
+
+    const deduped = [...new Set(rawTickers.map((ticker) => ticker.trim().toUpperCase()))];
+
+    return { isValid: true, errors: [], tickers: deduped };
+};
+
+module.exports = { validatePeersLimit, validateDiscoveryImportTickers };

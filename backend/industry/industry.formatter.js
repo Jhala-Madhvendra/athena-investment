@@ -140,4 +140,35 @@ const formatMetricsResponse = (result) => ({
     metrics: Object.entries(result.metrics).map(([key, definition]) => ({ metric: key, ...definition })),
 });
 
-module.exports = { formatIndustryResponse, formatPeersResponse, formatMetricsResponse };
+/** @param {{classificationLevel: string, classificationValue: string, candidates: object[]}} result - industry.discovery.discoverCandidates()'s output */
+const formatDiscoveryResponse = (result) => ({
+    classificationLevel: result.classificationLevel,
+    classificationValue: result.classificationValue,
+    candidates: result.candidates.map((candidate) => ({
+        ticker: candidate.ticker,
+        name: candidate.name,
+        exchange: candidate.exchange,
+        marketCap: candidate.marketCap,
+    })),
+    limitation:
+        "These companies are not yet tracked by Athena and have not been reviewed - they are drawn from a live external " +
+        "classification search, not a curated or verified list. Selecting and adding one imports its company profile and " +
+        "financial statements into Athena so it can join this industry's reference universe.",
+    generatedAt: new Date().toISOString(),
+});
+
+/** @param {Array<{ticker: string, companyImported: boolean, financialsImported: boolean, error: string|null}>} results - industry.discovery.importSelectedCompanies()'s output */
+const formatImportResponse = (results) => ({
+    imported: results.filter((result) => result.companyImported && result.financialsImported).map((result) => result.ticker),
+    partial: results.filter((result) => result.companyImported && !result.financialsImported),
+    failed: results.filter((result) => !result.companyImported),
+    generatedAt: new Date().toISOString(),
+});
+
+module.exports = {
+    formatIndustryResponse,
+    formatPeersResponse,
+    formatMetricsResponse,
+    formatDiscoveryResponse,
+    formatImportResponse,
+};
