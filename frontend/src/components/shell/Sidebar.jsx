@@ -9,6 +9,7 @@ import {
   Calculator,
   TrendingUp,
   Sparkles,
+  Factory,
   Search,
   Loader2,
   X,
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { key: 'market-intelligence', label: 'Market Intelligence', to: 'market-intelligence', icon: LineChart },
   { key: 'valuation', label: 'Valuation', to: 'valuation', icon: Calculator },
   { key: 'earnings', label: 'Earnings', to: 'earnings', icon: TrendingUp },
+  { key: 'industry', label: 'Industry', to: 'industry', icon: Factory },
   { key: 'news', label: 'News & Events', to: 'news', icon: Newspaper },
   { key: 'ai-research', label: 'AI Research', to: 'ai-research', icon: Sparkles },
 ];

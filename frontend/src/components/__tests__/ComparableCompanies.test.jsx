@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render as renderRTL, screen, fireEvent, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import ComparableCompanies from '../ComparableCompanies';
 import { mockCompsFetch, errorResponse } from '../../test/fetchMock';
 import { availablePeersFixture, compsResultFixture } from '../../test/compsFixtures';
@@ -7,6 +8,15 @@ import { availablePeersFixture, compsResultFixture } from '../../test/compsFixtu
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+/**
+ * ComparableCompanies now reads react-router's useLocation/useNavigate
+ * (Sprint 13's Industry -> Comps "Use for Comparable Analysis" hand-off),
+ * so every render needs a Router ancestor - a plain MemoryRouter is enough
+ * since the component takes its ticker/currency/dcfResult via props, not
+ * route params or outlet context.
+ */
+const render = (ui) => renderRTL(<MemoryRouter>{ui}</MemoryRouter>);
 
 /** Adds the first two "Add"-labeled candidates in the currently-rendered peer list (PEERA then PEERB, per the fixture order). */
 const addFirstTwoCandidates = () => {

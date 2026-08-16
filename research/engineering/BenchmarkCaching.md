@@ -1,0 +1,35 @@
+# Engineering Concept: Benchmark Caching
+
+## What it is
+
+`backend/industry/industry.service.js` maintains a single in-memory `Map` (`universeCache`) that caches the *assembled reference-universe bundle* — every peer's computed metrics (financial and market) — keyed by `${universe.level}:${universe.key}` (e.g. `"industry:Software"`), with a 5-minute TTL. The target company's own metrics are never cached — only the reference universe.
+
+## Why we use it
+
+Benchmarking a single target against a reference universe of up to `MAX_UNIVERSE_SIZE` (30) companies means one live market quote per universe member on top of their financial statements. `market.service.js`'s own `quoteCache` already caches an individual quote for 60 seconds, but every *different* Industry page view for a company in the same industry would otherwise still re-fetch the full universe's data independently — wasteful when two companies sharing an industry are viewed minutes apart, which is a common navigation pattern (a user comparing several companies in the same space back-to-back).
+
+## Alternatives considered
+
+- **No caching — recompute the universe on every request.** This is what Athena already does for the *target's own* metrics (cheap, DB-only, single company) and for Sprint 7's Comps/Ratio Engine generally. Rejected specifically for the *universe* bundle because it's the one part of Industry Intelligence whose cost scales with the size of the reference universe, not with a single company — recomputing it on every request for every company in a shared industry multiplies the live-quote fetch cost unnecessarily.
+- **Caching at the individual-metric level** (e.g., "operating margin for ticker X, industry Y") rather than the whole universe bundle. Rejected — it would require the same number of cache lookups as no caching at all for the parts that changed, while adding bookkeeping complexity for no real benefit; the whole universe is fetched together anyway (`Promise.all` over every candidate), so caching it as one unit matches how it's actually produced and consumed.
+- **A shared cache (Redis or similar).** Rejected — no such infrastructure exists anywhere in Athena today (confirmed by inspecting `backend/utils` and every existing service before building this). `market.service.js`'s own `quoteCache` is the only existing caching precedent in the codebase, and it's the same in-memory `Map` + `expiresAt` pattern — introducing a new dependency for a single feature's cache would be disproportionate.
+
+## Trade-offs
+
+**For a 5-minute, in-memory, universe-keyed cache:** browsing between several companies in the same industry, or revisiting the same company's Industry tab shortly after, costs no additional financial-statement or market-quote fetches after the first request — verified in `industry.service.test.js`'s caching test, which asserts the peer-fetch call count doesn't increase on a second call within the TTL window. `GET /api/industry/:ticker/peers` reuses the exact same cache entry as `GET /api/industry/:ticker`, so viewing peers after the main page (the expected navigation order) is effectively free.
+
+**Against it:** the cache is per-process and in-memory — restarting the server or running multiple instances behind a load balancer means each process maintains its own cache (no shared state), and a newly-imported company won't appear in an already-warm universe entry until the TTL expires. Both are accepted trade-offs consistent with `market.service.js`'s existing `quoteCache`, which has the identical limitation and has been in production since Sprint 4.
+
+## Why 5 minutes specifically
+
+Long enough that the common case (browsing several companies in one industry, or revisiting a tab) avoids redundant live-quote fetches; short enough that valuation multiples (which move with the market) don't go stale for an entire session. This is a deliberately different TTL from `market.service.js`'s 60-second quote cache — that cache exists to deduplicate near-simultaneous requests for the *same* quote, not to keep a whole computed universe warm across navigation.
+
+## How stale data is handled
+
+Nothing in the response claims real-time freshness beyond what's disclosed: `dataFreshness.marketDataAsOf` reports the actual quote timestamp used, and the frontend renders it directly — a cached-but-5-minutes-stale quote is still labeled with its real timestamp, never presented as "live." There is no separate "cache age" indicator in the API response; the existing `marketDataAsOf`/`financialPeriod` fields already communicate freshness the same way Sprint 7's Comps and Sprint 12's Earnings do.
+
+## Interview questions
+
+1. *"Why is the target company's own data never cached, only the reference universe's?"* — The target is always a single company (cheap to recompute — one statement fetch, one quote) and must reflect the very latest data on every request, since it's the subject of the analysis. The universe is the part whose cost scales with company count, and whose individual members' data doesn't need to be quite as instantaneously fresh as the target's own.
+2. *"What happens if a company gets imported into Athena while a universe cache entry for its industry is still warm?"* — It won't appear in that industry's benchmark until the cache entry expires (at most 5 minutes later) — an accepted staleness window, not a bug. This mirrors how `market.service.js`'s quote cache already accepts up to 60 seconds of staleness for the same reason: the cost of always-fresh data (a live fetch on every single request) outweighs the benefit for how quickly this specific data actually changes.
+3. *"Why key the cache by `level:key` instead of by the target ticker?"* — Because the reference universe itself is shared across every company in the same industry — two companies in "Software" should hit the exact same cache entry, not each maintain their own redundant copy of the same underlying data. Keying by ticker would multiply the cache size and the fetch cost by the number of companies sharing an industry, defeating the purpose.

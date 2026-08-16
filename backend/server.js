@@ -23,6 +23,7 @@ const watchlistRoutes = require("./watchlist/watchlist.routes");
 const portfolioRoutes = require("./portfolio/portfolio.routes");
 const alertRoutes = require("./alerts/alert.routes");
 const earningsRoutes = require("./earnings/earnings.routes");
+const industryRoutes = require("./industry/industry.routes");
 
 connectDB();
 
@@ -75,6 +76,7 @@ app.use("/api/watchlist", watchlistRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/alerts", alertRoutes);
 app.use("/api/earnings", earningsRoutes);
+app.use("/api/industry", industryRoutes);
 
 app.use((err, req, res, next) => {
     const fallbackStatusCode = err.message === "Not allowed by CORS" ? 403 : 500;

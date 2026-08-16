@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Card from './ui/Card';
 import Skeleton from './ui/Skeleton';
 import ErrorState from './ui/ErrorState';
@@ -36,6 +37,9 @@ const fetchJson = async (url, options) => {
  * financials + a live market quote, same discipline as the DCF tab.
  */
 function ComparableCompanies({ ticker, currency, dcfResult }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [targetInfo, setTargetInfo] = useState(null);
   const [targetInfoLoading, setTargetInfoLoading] = useState(true);
   const [targetInfoError, setTargetInfoError] = useState('');
@@ -88,6 +92,25 @@ function ComparableCompanies({ ticker, currency, dcfResult }) {
         : [...previous, { ticker: candidate.ticker, name: candidate.name }]
     );
   };
+
+  /**
+   * Sprint 13's Industry page can suggest a "potential peer" and route here
+   * with it in navigation state (see Industry.jsx's useForComps). This only
+   * pre-fills the picker via the same addPeer() a manual click would use -
+   * the user still has to review it and explicitly click Calculate, so
+   * nothing is auto-added to a Comps calculation (see Sprint 13's
+   * "potential peers never automatically become the Comps peer set").
+   * State is cleared immediately after being consumed so navigating back to
+   * this tab (e.g. browser back button) doesn't re-add it.
+   */
+  useEffect(() => {
+    const suggestedPeer = location.state?.suggestedPeer;
+    if (!suggestedPeer) return;
+
+    addPeer(suggestedPeer);
+    navigate(location.pathname, { replace: true, state: {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const removePeer = (peerTicker) => {
     setSelectedPeers((previous) => previous.filter((peer) => peer.ticker !== peerTicker));

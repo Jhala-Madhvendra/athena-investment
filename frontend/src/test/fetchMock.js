@@ -156,6 +156,33 @@ export function mockEarningsFetch(response) {
   });
 }
 
+/**
+ * Routes a mocked global.fetch for the Industry tab's two endpoints.
+ * Checked most-specific first, since `/peers` contains the base
+ * `/api/industry/:ticker` path.
+ *
+ * @param {object} responses - { industry, peers }
+ *   Each value is either a JSON body (200 OK) or { status, body } for an
+ *   error (see errorResponse). `undefined` leaves that endpoint hanging.
+ */
+export function mockIndustryFetch(responses) {
+  const resolveFor = (url) => {
+    if (url.includes('/peers')) return responses.peers;
+    return responses.industry;
+  };
+
+  globalThis.fetch = vi.fn((url) => {
+    const entry = resolveFor(url);
+    if (entry === undefined) {
+      return new Promise(() => {}); // never resolves - simulates still-loading
+    }
+    if (entry && entry.__error) {
+      return Promise.resolve(jsonResponse(entry.status ?? 500, entry.body ?? { message: 'Request failed.' }));
+    }
+    return Promise.resolve(jsonResponse(200, entry));
+  });
+}
+
 export function mockValuationFetch(responses) {
   const resolveFor = (url) => {
     if (url.includes('/dcf/defaults')) return responses.defaults;
