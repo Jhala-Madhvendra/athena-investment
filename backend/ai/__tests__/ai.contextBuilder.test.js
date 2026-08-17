@@ -21,6 +21,7 @@ const valuationService = require("../../valuation/valuation.service");
 const compsService = require("../../valuation/comps/comps.service");
 const compsPeerSelector = require("../../valuation/comps/comps.peerSelector");
 const newsService = require("../../news/news.service");
+const fxRateProvider = require("../../market/providers/fxRate.provider");
 
 const { buildResearchContext, buildEvidenceAllowList } = require("../ai.contextBuilder");
 
@@ -390,6 +391,29 @@ describe("buildResearchContext - partial failure tolerance", () => {
 
         expect(context.comps.available).toBe(false);
         expect(compsService.calculateComparableCompanyAnalysis).not.toHaveBeenCalled();
+    });
+
+    it("auto-selects peers by USD-normalized market cap, not a raw currency-mixed comparison", async () => {
+        mockHappyPath();
+        const rateSpy = jest.spyOn(fxRateProvider, "getRateToUSD").mockImplementation(async (currency) => (currency === "INR" ? 1 / 87.5 : 1));
+        // Target: $3T USD. RAW_CLOSE has a raw marketCap near the target's number but is INR-denominated (~$34M actual) - should NOT be picked.
+        // GENUINE_CLOSE is a real ~$2.9T (USD) company - should be picked over RAW_CLOSE despite RAW_CLOSE's raw number being numerically nearer to 3T.
+        compsPeerSelector.getAvailablePeerCandidates.mockResolvedValue({
+            target: { ...CANDIDATES_RESPONSE.target, currency: "USD" },
+            candidates: [
+                { ticker: "RAW_CLOSE", name: "Raw Close", exchange: "BSE", sector: "Technology", industry: "Software", marketCap: 2_950_000_000_000, currency: "INR", revenue: 1, revenueFiscalYear: 2024, hasFinancialStatements: true },
+                { ticker: "GENUINE_CLOSE", name: "Genuine Close", exchange: "NASDAQ", sector: "Technology", industry: "Software", marketCap: 2_900_000_000_000, currency: "USD", revenue: 1, revenueFiscalYear: 2024, hasFinancialStatements: true },
+                { ticker: "THIRD", name: "Third", exchange: "NASDAQ", sector: "Technology", industry: "Software", marketCap: 1_000_000_000_000, currency: "USD", revenue: 1, revenueFiscalYear: 2024, hasFinancialStatements: true },
+            ],
+            limitation: "...",
+        });
+
+        const { context } = await buildResearchContext("AAPL");
+
+        // GENUINE_CLOSE ($2.9T) must rank ahead of RAW_CLOSE (raw number 2.95T but actually ~₹2.95T =~ $34B) once currency-normalized.
+        expect(context.comps.peersUsed.indexOf("GENUINE_CLOSE")).toBeLessThan(context.comps.peersUsed.indexOf("RAW_CLOSE"));
+
+        rateSpy.mockRestore();
     });
 });
 

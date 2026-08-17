@@ -14,7 +14,7 @@ Every other portfolio number in Athena (cost basis, current value, gain/loss, re
 
 ## 3. Intuition
 
-Four numbers are enough to answer "how is this investment doing?" as long as you also know what it's worth today. Athena deliberately doesn't ask for anything more (no fees, no lot-accounting method, no currency conversion) — see Limitations.
+Four numbers are enough to answer "how is this investment doing?" as long as you also know what it's worth today. Athena deliberately doesn't ask for anything more (no fees, no lot-accounting method) — see Limitations.
 
 ## 4. Why investors care
 
@@ -25,7 +25,7 @@ This is the smallest set of facts that makes cost basis, gain/loss, and return a
 - **No transaction fees or commissions.** Cost basis is `shares × price` only — a real brokerage cost basis often includes fees, which Athena doesn't ask for or track.
 - **No lot-accounting method (FIFO/LIFO/specific-lot).** Multiple lots of the same ticker are tracked as separate rows and netted for display (see PortfolioWeight.md), but Athena never picks "which lot" was sold for tax purposes, because Athena has no sell/realize concept at all — see WatchlistVsPortfolio.md and the sprint's explicit "no brokerage integration, no order execution" boundary.
 - **Zero purchase price is allowed** (e.g. gifted shares) but makes Return % undefined rather than infinite — see UnrealizedGainLoss.md.
-- **Single-currency assumption.** A holding's current value is computed in whatever currency its ticker trades in (Athena surfaces this per row), but portfolio-level totals sum raw numbers across holdings without FX conversion — correct for an all-USD (or all-one-currency) portfolio, silently wrong if you hold, say, both a NASDAQ and an NSE-listed stock. Documented as a known limitation, not hidden.
+- ~~Single-currency assumption~~ **Fixed.** Earlier versions summed portfolio-level totals as raw numbers across holdings with no FX conversion — correct only for an all-one-currency portfolio, silently wrong for a mixed NASDAQ/NSE portfolio (a ₹9,260 holding was counted as if it were $9,260). Portfolio-level totals, weights, and concentration are now computed from each holding's value converted to USD via a live exchange rate; a holding's own per-row figures stay in its native currency. See PortfolioCurrencyNormalization.md.
 
 ## 6. How Athena implements it
 

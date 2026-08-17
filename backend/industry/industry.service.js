@@ -36,6 +36,7 @@
 const companyService = require("../services/company.service");
 const financialsService = require("../financials/financials.service");
 const marketService = require("../market/market.service");
+const fxRateProvider = require("../market/providers/fxRate.provider");
 const { resolveReferenceUniverse, rankByMarketCapProximity, SUGGESTED_PEERS_LIMIT } = require("./industry.peerDiscovery");
 const { buildCompanyMetricBundle, METRIC_DEFINITIONS } = require("./industry.calculator");
 const benchmark = require("./industry.benchmark");
@@ -81,6 +82,8 @@ const loadMemberBundle = async (member) => {
     return {
         ...member,
         ...metricBundle,
+        // The live quote's own currency (matches the live marketCap above) takes priority over the stored Company record's, same fallback order as marketCap itself.
+        currency: quote?.currency ?? member.currency ?? null,
         marketDataAsOf: quote?.asOf ?? null,
     };
 };
@@ -103,6 +106,19 @@ const getUniverseBundles = async (universe, candidates) => {
     universeCache.set(cacheKey, { members, expiresAt: Date.now() + INDUSTRY_CACHE_TTL_MS, cachedAt: new Date().toISOString() });
 
     return members;
+};
+
+/**
+ * Ranks universe members by market-cap proximity to the target, first
+ * normalizing every market cap to USD (see fxRate.provider.js's
+ * attachMarketCapUSD) - comparing raw market caps across currencies would
+ * silently misrank "closest peer" the same way Portfolio's raw
+ * cross-currency totals were silently wrong; see
+ * PortfolioCurrencyNormalization.md.
+ */
+const rankSuggestedPeers = async (targetForRanking, universeMembers, limit) => {
+    const [targetWithUSD, ...membersWithUSD] = await fxRateProvider.attachMarketCapUSD([targetForRanking, ...universeMembers]);
+    return rankByMarketCapProximity(targetWithUSD, membersWithUSD, limit);
 };
 
 /** Builds one benchmark entry for a single metric: universe summary, target comparison, percentile position, and (for percent metrics only) a strength/weakness classification. */
@@ -163,7 +179,11 @@ const getIndustryIntelligence = async (rawTicker) => {
         buildMetricBenchmark(metricKey, targetBundle.metrics[metricKey], universeMembers)
     );
 
-    const suggestedPeers = rankByMarketCapProximity(target, universeMembers, SUGGESTED_PEERS_LIMIT);
+    const suggestedPeers = await rankSuggestedPeers(
+        { marketCap: targetBundle.marketCap, currency: targetQuote?.currency ?? target.currency ?? null },
+        universeMembers,
+        SUGGESTED_PEERS_LIMIT
+    );
 
     return {
         ticker: target.ticker,
@@ -187,7 +207,7 @@ const getIndustryIntelligence = async (rawTicker) => {
 const getPeerSuggestions = async (rawTicker, limit = SUGGESTED_PEERS_LIMIT) => {
     const { target, universe, candidates } = await resolveReferenceUniverse(rawTicker);
     const universeMembers = await getUniverseBundles(universe, candidates);
-    const suggestedPeers = rankByMarketCapProximity(target, universeMembers, limit);
+    const suggestedPeers = await rankSuggestedPeers(target, universeMembers, limit);
 
     return { target, universe, suggestedPeers };
 };

@@ -16,8 +16,12 @@ const SEARCH_DEBOUNCE_MS = 250;
  * action (GET .../available-peers/live-search) lets the user pull in a
  * company Athena hasn't seen yet - a single live call on explicit request,
  * never fired per keystroke like the debounced local search above.
+ *
+ * Each candidate's Market Cap/Revenue is labeled with that CANDIDATE'S OWN
+ * currency (`candidate.currency`), not the target's - a candidate trading
+ * in a different currency than the target must not be silently mislabeled.
  */
-function PeerSelector({ ticker, currency, selectedPeers, onAdd, onRemove }) {
+function PeerSelector({ ticker, selectedPeers, onAdd, onRemove }) {
   const [query, setQuery] = useState('');
   const [candidates, setCandidates] = useState([]);
   const [limitation, setLimitation] = useState('');
@@ -126,8 +130,8 @@ function PeerSelector({ ticker, currency, selectedPeers, onAdd, onRemove }) {
           </p>
           <p className="truncate text-xs text-ink-muted">
             {candidate.industry || candidate.sector || 'Industry unavailable'} · Market Cap{' '}
-            {formatMoney(candidate.marketCap, currency)} · Revenue{' '}
-            {candidate.hasFinancialStatements ? formatMoney(candidate.revenue, currency) : 'not imported'}
+            {formatMoney(candidate.marketCap, candidate.currency)} · Revenue{' '}
+            {candidate.hasFinancialStatements ? formatMoney(candidate.revenue, candidate.currency) : 'not imported'}
           </p>
         </div>
         <button

@@ -48,3 +48,12 @@ A holding whose live price is unavailable is excluded from *both* totals (never 
 
 1. *"Walk me through why averaging individual holding returns is wrong."* — Use the concrete numbers: a $100 position at +100% and a $10,000 position at −1% average to +49.5%, which suggests a big win — but the portfolio's actual dollar-weighted return is ~0% (roughly breakeven), because the huge position's small loss in dollar terms dwarfs the tiny position's percentage gain. Averaging percentages discards the fact that positions have different sizes.
 2. *"Is Athena's Portfolio Return % the same thing as an annualized return (CAGR)?"* — No — it's a simple point-in-time (gain since purchase) / (cost basis) calculation with no time dimension. A position held one day and one held five years contribute to the total the same way, which is a documented limitation, not an oversight; a true annualized/money-weighted return would need each lot's purchase date factored in (essentially an XIRR calculation), which Athena doesn't attempt this sprint.
+
+## 9. Sprint 14 update: Portfolio Performance Return (a second, distinct number)
+
+Sprint 14 adds `GET /api/portfolio/analytics`, which returns a **second, deliberately separate** return figure alongside this one: `performance.periodReturnPercent` (and its annualized form, `performance.annualizedReturnPercent`). The two are never merged:
+
+- **`unrealizedReturnPercent`** (this document) - the cost-basis return described above, unchanged by Sprint 14.
+- **`periodReturnPercent`** - built from a simulated historical return series: today's holding weights applied backward over each holding's own historical daily price returns, then compounded over the selected window. This is an *estimate of how the current mix would have performed*, not a record of what the portfolio actually earned - see PortfolioCalculationAssumptions.md for why Athena has no true historical portfolio record to compute from instead.
+
+The two numbers will often disagree, sometimes significantly - that's expected and correct, not a bug. `unrealizedReturnPercent` reflects each lot's *actual* purchase price; `periodReturnPercent` reflects *today's* holdings mix projected across a fixed historical window regardless of when anything was actually bought.

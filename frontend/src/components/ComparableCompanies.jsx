@@ -183,7 +183,7 @@ function ComparableCompanies({ ticker, currency, dcfResult }) {
 
       <Card title="Peer Selection">
         <div className="space-y-5">
-          <PeerSelector ticker={ticker} currency={currency} selectedPeers={selectedPeers} onAdd={addPeer} onRemove={removePeer} />
+          <PeerSelector ticker={ticker} selectedPeers={selectedPeers} onAdd={addPeer} onRemove={removePeer} />
 
           <div className="border-t border-border pt-5">
             <StatisticSelector value={statistic} onChange={setStatistic} />
@@ -252,7 +252,7 @@ function ComparableCompanies({ ticker, currency, dcfResult }) {
             padded={false}
           >
             <div className="p-5">
-              <PeerComparisonTable target={result.target} peers={result.peers} currency={currency} />
+              <PeerComparisonTable target={result.target} peers={result.peers} />
             </div>
           </Card>
 

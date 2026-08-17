@@ -74,6 +74,39 @@ describe("enrichHolding", () => {
         expect(result.returnPercent).toBeNull();
         expect(result.priceUnavailable).toBe(true);
     });
+
+    it("defaults to an fxRateToUSD of 1 (native-currency figures already in USD) when no rate is passed", () => {
+        const holding = { ticker: "AAPL", shares: 10, averagePurchasePrice: 100 };
+        const result = calculator.enrichHolding(holding, 150);
+
+        expect(result.costBasisUSD).toBe(1000);
+        expect(result.currentValueUSD).toBe(1500);
+        expect(result.fxRateUnavailable).toBe(false);
+    });
+
+    it("converts costBasis/currentValue to USD using the supplied exchange rate, without changing the native-currency figures", () => {
+        // TCS.BO: 4 shares @ 70 INR cost, 2315 INR current price. Rate ~1/87.5 USD per INR.
+        const holding = { ticker: "TCS.BO", shares: 4, averagePurchasePrice: 70 };
+        const fxRateToUSD = 1 / 87.5;
+        const result = calculator.enrichHolding(holding, 2315, fxRateToUSD);
+
+        expect(result.costBasis).toBe(280); // unchanged, still INR
+        expect(result.currentValue).toBe(9260); // unchanged, still INR
+        expect(result.costBasisUSD).toBeCloseTo(280 / 87.5, 5);
+        expect(result.currentValueUSD).toBeCloseTo(9260 / 87.5, 5);
+        // Per-holding return % is a same-currency ratio - completely unaffected by the FX rate.
+        expect(result.returnPercent).toBeCloseTo(calculator.calculateReturnPercent(9260, 280), 10);
+    });
+
+    it("reports currentValueUSD/costBasisUSD as null (not a wrong number) when the exchange rate is unavailable", () => {
+        const holding = { ticker: "TCS.BO", shares: 4, averagePurchasePrice: 70 };
+        const result = calculator.enrichHolding(holding, 2315, null);
+
+        expect(result.currentValue).toBe(9260); // native currency still known and displayed
+        expect(result.costBasisUSD).toBeNull();
+        expect(result.currentValueUSD).toBeNull();
+        expect(result.fxRateUnavailable).toBe(true);
+    });
 });
 
 describe("groupByTicker", () => {
@@ -183,5 +216,67 @@ describe("summarizePortfolio", () => {
 
         expect(summary.concentration.topHoldingWeightPercent).toBeCloseTo(80);
         expect(summary.concentration.top3WeightPercent).toBeCloseTo(100);
+    });
+
+    describe("multi-currency portfolios", () => {
+        // Regression coverage for a real bug: an INR holding's raw value was
+        // being summed directly with USD holdings as if 1 INR == 1 USD,
+        // wildly overstating totalCurrentValue and every weight/concentration
+        // figure built on top of it.
+        const usdRate = 1; // USD is the base currency
+        const inrRate = 1 / 87.5; // ~87.5 INR per USD
+
+        it("sums totals in USD, not as a naive cross-currency sum of raw numbers", () => {
+            const enriched = [
+                calculator.enrichHolding({ ticker: "AAPL", shares: 10, averagePurchasePrice: 150 }, 300, usdRate), // $3,000
+                calculator.enrichHolding({ ticker: "TCS.BO", shares: 4, averagePurchasePrice: 70 }, 2315, inrRate), // 9,260 INR ~= $105.83
+            ];
+
+            const summary = calculator.summarizePortfolio(enriched);
+
+            // The bug: naive sum would be 3000 + 9260 = 12260. Correct: 3000 + (9260/87.5).
+            const expectedTotal = 3000 + 9260 / 87.5;
+            expect(summary.totalCurrentValue).toBeCloseTo(expectedTotal, 5);
+            expect(summary.totalCurrentValue).not.toBeCloseTo(12260, 0);
+        });
+
+        it("weights a large-raw-number-but-small-actual-value INR holding correctly, not as if it dominated the portfolio", () => {
+            const enriched = [
+                calculator.enrichHolding({ ticker: "AAPL", shares: 10, averagePurchasePrice: 150 }, 300, usdRate), // $3,000
+                calculator.enrichHolding({ ticker: "TCS.BO", shares: 4, averagePurchasePrice: 70 }, 2315, inrRate), // ~$105.83 - genuinely small
+            ];
+
+            const positions = calculator.groupByTicker(enriched).map((p) => ({
+                ...p,
+                weightPercent: (p.currentValueUSD / (3000 + 9260 / 87.5)) * 100,
+            }));
+
+            const tcs = positions.find((p) => p.ticker === "TCS.BO");
+            const aapl = positions.find((p) => p.ticker === "AAPL");
+
+            // TCS.BO's raw number (9,260) is larger than AAPL's (300), but its true USD weight is small.
+            expect(tcs.weightPercent).toBeLessThan(5);
+            expect(aapl.weightPercent).toBeGreaterThan(95);
+        });
+
+        it("excludes a holding from USD totals (with a stated reason) when its exchange rate is unavailable, without dropping its native-currency data", () => {
+            const enriched = [
+                calculator.enrichHolding({ ticker: "AAPL", shares: 10, averagePurchasePrice: 150 }, 300, usdRate),
+                calculator.enrichHolding({ ticker: "TCS.BO", shares: 4, averagePurchasePrice: 70 }, 2315, null), // rate unavailable
+            ];
+
+            const summary = calculator.summarizePortfolio(enriched);
+
+            expect(summary.totalCurrentValue).toBe(3000); // only AAPL - TCS.BO's USD value is unknown, not assumed
+            expect(summary.fxUnavailableHoldings).toEqual([{ ticker: "TCS.BO", currency: null, currentValue: 9260 }]);
+        });
+
+        it("does not affect a single holding's own return percent, since it's a same-currency ratio", () => {
+            const enriched = [calculator.enrichHolding({ ticker: "TCS.BO", shares: 4, averagePurchasePrice: 70 }, 2315, inrRate)];
+            const summary = calculator.summarizePortfolio(enriched);
+
+            // Return % should match the native-currency calculation exactly - USD conversion must not distort it.
+            expect(summary.totalReturnPercent).toBeCloseTo(calculator.calculateReturnPercent(9260, 280), 10);
+        });
     });
 });

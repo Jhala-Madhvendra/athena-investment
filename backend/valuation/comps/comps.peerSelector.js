@@ -66,6 +66,7 @@ const attachLatestRevenue = async (companies) => {
             sector: company.sector ?? null,
             industry: company.industry ?? null,
             marketCap: company.marketCap ?? null,
+            currency: company.currency ?? null,
             revenue: latest?.revenue ?? null,
             revenueFiscalYear: latest?.year ?? null,
             hasFinancialStatements: Boolean(latest),
@@ -89,8 +90,8 @@ const getAvailablePeerCandidates = async (targetTicker, searchQuery) => {
     }
 
     const [targetCompany, candidateCompanies] = await Promise.all([
-        Company.findOne({ ticker: normalizedTarget }).select("ticker name sector industry marketCap").lean(),
-        Company.find(filter).select("ticker name exchange sector industry marketCap").sort({ name: 1 }).limit(CANDIDATE_LIMIT).lean(),
+        Company.findOne({ ticker: normalizedTarget }).select("ticker name sector industry marketCap currency").lean(),
+        Company.find(filter).select("ticker name exchange sector industry marketCap currency").sort({ name: 1 }).limit(CANDIDATE_LIMIT).lean(),
     ]);
 
     const candidates = await attachLatestRevenue(candidateCompanies);
@@ -103,6 +104,7 @@ const getAvailablePeerCandidates = async (targetTicker, searchQuery) => {
                   sector: targetCompany.sector ?? null,
                   industry: targetCompany.industry ?? null,
                   marketCap: targetCompany.marketCap ?? null,
+                  currency: targetCompany.currency ?? null,
               }
             : null,
         candidates,
@@ -150,7 +152,7 @@ const findLivePeerCandidate = async (targetTicker, query) => {
     }
 
     const company = await Company.findOne({ ticker: resolvedTicker })
-        .select("ticker name exchange sector industry marketCap")
+        .select("ticker name exchange sector industry marketCap currency")
         .lean();
 
     const [candidate] = await attachLatestRevenue([company]);

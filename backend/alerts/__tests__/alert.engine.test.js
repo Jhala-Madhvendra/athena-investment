@@ -287,8 +287,8 @@ describe("evaluatePortfolioRules", () => {
 
     it("does not fire HIGH_CONCENTRATION just under the threshold", () => {
         const holdings = [
-            { ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 249, priceUnavailable: false },
-            { ticker: "MSFT", shares: 1, costBasis: 1000, currentValue: 751, priceUnavailable: false },
+            { ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 249, costBasisUSD: 1000, currentValueUSD: 249, priceUnavailable: false, fxRateUnavailable: false },
+            { ticker: "MSFT", shares: 1, costBasis: 1000, currentValue: 751, costBasisUSD: 1000, currentValueUSD: 751, priceUnavailable: false, fxRateUnavailable: false },
         ];
         const summary = { totalCurrentValue: 1000 };
         const { candidates } = engine.evaluatePortfolioRules({ holdings, summary, previousSnapshots: new Map() });
@@ -297,8 +297,8 @@ describe("evaluatePortfolioRules", () => {
 
     it("fires HIGH_CONCENTRATION at MEDIUM at the low threshold and HIGH at the high threshold", () => {
         const holdingsMedium = [
-            { ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 250, priceUnavailable: false },
-            { ticker: "MSFT", shares: 1, costBasis: 1000, currentValue: 750, priceUnavailable: false },
+            { ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 250, costBasisUSD: 1000, currentValueUSD: 250, priceUnavailable: false, fxRateUnavailable: false },
+            { ticker: "MSFT", shares: 1, costBasis: 1000, currentValue: 750, costBasisUSD: 1000, currentValueUSD: 750, priceUnavailable: false, fxRateUnavailable: false },
         ];
         const { candidates: medium } = engine.evaluatePortfolioRules({
             holdings: holdingsMedium,
@@ -308,8 +308,8 @@ describe("evaluatePortfolioRules", () => {
         expect(medium.find((c) => c.rule === "HIGH_CONCENTRATION").severity).toBe("MEDIUM");
 
         const holdingsHigh = [
-            { ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 400, priceUnavailable: false },
-            { ticker: "MSFT", shares: 1, costBasis: 1000, currentValue: 600, priceUnavailable: false },
+            { ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 400, costBasisUSD: 1000, currentValueUSD: 400, priceUnavailable: false, fxRateUnavailable: false },
+            { ticker: "MSFT", shares: 1, costBasis: 1000, currentValue: 600, costBasisUSD: 1000, currentValueUSD: 600, priceUnavailable: false, fxRateUnavailable: false },
         ];
         const { candidates: high } = engine.evaluatePortfolioRules({
             holdings: holdingsHigh,
@@ -321,8 +321,8 @@ describe("evaluatePortfolioRules", () => {
 
     it("fires SIGNIFICANT_UNREALIZED_LOSS for a large negative return and not for a small one", () => {
         const holdings = [
-            { ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 750, priceUnavailable: false }, // -25%
-            { ticker: "MSFT", shares: 1, costBasis: 1000, currentValue: 980, priceUnavailable: false }, // -2%
+            { ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 750, costBasisUSD: 1000, currentValueUSD: 750, priceUnavailable: false, fxRateUnavailable: false }, // -25%
+            { ticker: "MSFT", shares: 1, costBasis: 1000, currentValue: 980, costBasisUSD: 1000, currentValueUSD: 980, priceUnavailable: false, fxRateUnavailable: false }, // -2%
         ];
         const { candidates } = engine.evaluatePortfolioRules({ holdings, summary: { totalCurrentValue: 1730 }, previousSnapshots: new Map() });
         expect(candidates.find((c) => c.ticker === "AAPL" && c.rule === "SIGNIFICANT_UNREALIZED_LOSS")).toBeDefined();
@@ -331,7 +331,7 @@ describe("evaluatePortfolioRules", () => {
     });
 
     it("does not fire HOLDING_VALUE_CHANGE when there is no previous snapshot (first observation), but still returns a snapshot update to establish one", () => {
-        const holdings = [{ ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 1100, priceUnavailable: false }];
+        const holdings = [{ ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 1100, costBasisUSD: 1000, currentValueUSD: 1100, priceUnavailable: false, fxRateUnavailable: false }];
         const { candidates, snapshotUpdates } = engine.evaluatePortfolioRules({
             holdings,
             summary: { totalCurrentValue: 1100 },
@@ -342,14 +342,14 @@ describe("evaluatePortfolioRules", () => {
     });
 
     it("fires HOLDING_VALUE_CHANGE when the value has moved enough since the previous snapshot", () => {
-        const holdings = [{ ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 1200, priceUnavailable: false }];
+        const holdings = [{ ticker: "AAPL", shares: 1, costBasis: 1000, currentValue: 1200, costBasisUSD: 1000, currentValueUSD: 1200, priceUnavailable: false, fxRateUnavailable: false }];
         const previousSnapshots = new Map([["AAPL", { currentValue: 1000, observedAt: new Date() }]]);
         const { candidates } = engine.evaluatePortfolioRules({ holdings, summary: { totalCurrentValue: 1200 }, previousSnapshots });
         expect(candidates.find((c) => c.rule === "HOLDING_VALUE_CHANGE")).toBeDefined();
     });
 
     it("excludes a holding with an unavailable price from concentration/value-change entirely (no fabricated zero)", () => {
-        const holdings = [{ ticker: "ZZZZ", shares: 1, costBasis: 1000, currentValue: null, priceUnavailable: true }];
+        const holdings = [{ ticker: "ZZZZ", shares: 1, costBasis: 1000, currentValue: null, costBasisUSD: 1000, currentValueUSD: null, priceUnavailable: true, fxRateUnavailable: false }];
         const { candidates, snapshotUpdates } = engine.evaluatePortfolioRules({
             holdings,
             summary: { totalCurrentValue: 0 },

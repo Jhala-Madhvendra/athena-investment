@@ -64,7 +64,7 @@ const PEER_B_STATEMENT = statement({
     shares: 90,
 });
 
-const quoteFor = (price, marketCap) => ({ price: { current: price, marketCap }, asOf: "2024-01-01T00:00:00.000Z" });
+const quoteFor = (price, marketCap, currency) => ({ price: { current: price, marketCap }, currency: currency ?? null, asOf: "2024-01-01T00:00:00.000Z" });
 
 const mockFinancialsFor = (map) => {
     financialsService.getFinancialStatementsByTicker.mockImplementation((ticker) => {
@@ -143,6 +143,26 @@ describe("comps.service.calculateComparableCompanyAnalysis", () => {
         expect(result.impliedValuations.pe.impliedValuePerShare).toBe(100); // 20 * 500 / 100
         expect(result.impliedValuations.pe.currentMarketPrice).toBe(100);
         expect(result.impliedValuations.pe.upsideDownsidePercent).toBe(0);
+    });
+
+    it("carries each company's own currency through end-to-end, never applying the target's currency to a peer", async () => {
+        mockFinancialsFor({
+            TARGET: [TARGET_STATEMENT],
+            PEERA: [PEER_A_STATEMENT],
+            PEERB: [PEER_B_STATEMENT],
+        });
+        mockMarketFor({
+            TARGET: quoteFor(100, 10000, "USD"),
+            PEERA: quoteFor(100, 8000, "INR"), // a peer trading in a different currency than the target
+            PEERB: quoteFor(133.33, 12000, "USD"),
+        });
+        companyService.getCompanyDetails.mockResolvedValue({ name: "Some Co", sector: "Technology" });
+
+        const result = await compsService.calculateComparableCompanyAnalysis("TARGET", ["PEERA", "PEERB"], "median");
+
+        expect(result.target.currency).toBe("USD");
+        expect(result.peers.find((p) => p.ticker === "PEERA").currency).toBe("INR");
+        expect(result.peers.find((p) => p.ticker === "PEERB").currency).toBe("USD");
     });
 
     it("excludes a peer with no imported statements and reports it in unavailablePeers, but still succeeds with the rest", async () => {

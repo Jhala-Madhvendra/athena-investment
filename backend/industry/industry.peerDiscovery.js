@@ -61,6 +61,7 @@ const toUniverseMember = (company) => ({
     sector: company.sector ?? null,
     industry: company.industry ?? null,
     marketCap: company.marketCap ?? null,
+    currency: company.currency ?? null,
 });
 
 /**
@@ -89,18 +90,19 @@ const resolveReferenceUniverse = async (targetTicker) => {
         sector: targetCompany.sector ?? null,
         industry: targetCompany.industry ?? null,
         marketCap: targetCompany.marketCap ?? null,
+        currency: targetCompany.currency ?? null,
     };
 
     const [industryPool, sectorPool] = await Promise.all([
         target.industry
             ? Company.find({ industry: target.industry, ticker: { $ne: normalizedTicker } })
-                  .select("ticker name sector industry marketCap")
+                  .select("ticker name sector industry marketCap currency")
                   .limit(MAX_UNIVERSE_SIZE * 2)
                   .lean()
             : [],
         target.sector
             ? Company.find({ sector: target.sector, ticker: { $ne: normalizedTicker } })
-                  .select("ticker name sector industry marketCap")
+                  .select("ticker name sector industry marketCap currency")
                   .limit(MAX_UNIVERSE_SIZE * 2)
                   .lean()
             : [],
@@ -156,11 +158,11 @@ const resolveReferenceUniverse = async (targetTicker) => {
     };
 };
 
-const distanceByMarketCap = (targetMarketCap) => (candidate) => {
-    if (typeof targetMarketCap !== "number" || typeof candidate.marketCap !== "number") {
+const distanceByMarketCap = (targetMarketCapUSD) => (candidate) => {
+    if (typeof targetMarketCapUSD !== "number" || typeof candidate.marketCapUSD !== "number") {
         return Number.POSITIVE_INFINITY;
     }
-    return Math.abs(candidate.marketCap - targetMarketCap);
+    return Math.abs(candidate.marketCapUSD - targetMarketCapUSD);
 };
 
 /**
@@ -170,14 +172,23 @@ const distanceByMarketCap = (targetMarketCap) => (candidate) => {
  * internally) so a future automatic-peer-selection system can reuse this
  * exact ranking without duplicating it.
  *
- * @param {{marketCap: number|null}} target
- * @param {object[]} candidates - universe members (toUniverseMember shape)
+ * Ranks on `marketCapUSD`, NOT the native-currency `marketCap` - comparing
+ * raw market caps across currencies (e.g. an INR figure against a USD one)
+ * silently misranks "closest market cap" the same way it silently
+ * misweighted portfolio holdings before the fix in
+ * PortfolioCurrencyNormalization.md. Callers must attach `marketCapUSD` to
+ * both `target` and every candidate first (see
+ * market/providers/fxRate.provider.js's attachMarketCapUSD) - this
+ * function stays pure and never fetches an exchange rate itself.
+ *
+ * @param {{marketCapUSD: number|null}} target
+ * @param {object[]} candidates - universe members (toUniverseMember shape) with marketCapUSD attached
  * @param {number} [limit]
  * @returns {object[]} candidates sorted by market-cap proximity, capped to `limit`
  */
 const rankByMarketCapProximity = (target, candidates, limit = SUGGESTED_PEERS_LIMIT) =>
     [...candidates]
-        .sort((a, b) => distanceByMarketCap(target?.marketCap)(a) - distanceByMarketCap(target?.marketCap)(b))
+        .sort((a, b) => distanceByMarketCap(target?.marketCapUSD)(a) - distanceByMarketCap(target?.marketCapUSD)(b))
         .slice(0, limit);
 
 module.exports = {

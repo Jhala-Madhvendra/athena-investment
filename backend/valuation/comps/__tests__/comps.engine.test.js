@@ -60,6 +60,28 @@ const peerC = {
     cash: 300,
 };
 
+describe("comps.engine calculateComps - currency passthrough", () => {
+    it("carries each company's own currency through to its own output row, never the target's onto a peer", () => {
+        const usdTarget = { ...target, currency: "USD" };
+        const inrPeer = { ...peerA, currency: "INR" };
+        const usdPeer = { ...peerB, currency: "USD" };
+        const unknownCurrencyPeer = { ...peerC }; // no currency field at all
+
+        const result = calculateComps({ target: usdTarget, peers: [inrPeer, usdPeer, unknownCurrencyPeer], statistic: "median" });
+
+        expect(result.target.currency).toBe("USD");
+        expect(result.peers.find((p) => p.ticker === "PEERA").currency).toBe("INR");
+        expect(result.peers.find((p) => p.ticker === "PEERB").currency).toBe("USD");
+        expect(result.peers.find((p) => p.ticker === "PEERC").currency).toBeNull();
+    });
+
+    it("defaults currency to null (not the target's) when a company has no currency field", () => {
+        const result = calculateComps({ target, peers: [peerA, peerB, peerC], statistic: "median" });
+        expect(result.target.currency).toBeNull();
+        result.peers.forEach((peer) => expect(peer.currency).toBeNull());
+    });
+});
+
 describe("comps.engine calculateComps", () => {
     const result = calculateComps({ target, peers: [peerA, peerB, peerC], statistic: "median" });
 

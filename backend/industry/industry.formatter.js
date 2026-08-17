@@ -123,6 +123,7 @@ const formatPeersResponse = (result) => ({
         sector: peer.sector,
         industry: peer.industry,
         marketCap: peer.marketCap,
+        currency: peer.currency ?? null,
         revenueGrowth: peer.metrics?.revenueGrowth?.value ?? null,
         operatingMargin: peer.metrics?.operatingMargin?.value ?? null,
         pe: peer.metrics?.pe?.value ?? null,

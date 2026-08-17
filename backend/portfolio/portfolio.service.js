@@ -9,6 +9,7 @@
 
 const Holding = require("./holding.model");
 const marketService = require("../market/market.service");
+const fxRateProvider = require("../market/providers/fxRate.provider");
 const calculator = require("./portfolio.calculator");
 const { validateHoldingInput } = require("./portfolio.validator");
 
@@ -85,6 +86,23 @@ const fetchQuotesByTicker = async (tickers) => {
     return new Map(entries);
 };
 
+/**
+ * One live FX-to-USD rate per unique currency actually held (not per
+ * ticker) - same dedup shape as fetchQuotesByTicker, since several
+ * holdings commonly share a currency (e.g. two US stocks both need only
+ * one implicit USD "rate"). `currency` may be `null` (quote fetch failed
+ * entirely) - fxRateProvider.getRateToUSD(null) resolves that to 1, the
+ * same "treat unspecified as USD" default the frontend's formatCurrency
+ * already uses, so this doesn't invent an inconsistent new convention.
+ */
+const fetchFxRatesByCurrency = async (currencies) => {
+    const uniqueCurrencies = [...new Set(currencies)];
+    const entries = await Promise.all(
+        uniqueCurrencies.map(async (currency) => [currency, await fxRateProvider.getRateToUSD(currency)])
+    );
+    return new Map(entries);
+};
+
 const getPortfolio = async (userId) => {
     const holdings = await Holding.find({ userId }).sort({ createdAt: 1 }).lean();
 
@@ -93,17 +111,22 @@ const getPortfolio = async (userId) => {
     }
 
     const quotesByTicker = await fetchQuotesByTicker(holdings.map((h) => h.ticker));
+    const fxRatesByCurrency = await fetchFxRatesByCurrency([...quotesByTicker.values()].map((q) => q.currency));
+
     const enrichedHoldings = holdings.map((holding) => {
         const quote = quotesByTicker.get(holding.ticker);
-        return { ...calculator.enrichHolding(holding, quote?.price ?? null), currency: quote?.currency ?? null };
+        const currency = quote?.currency ?? null;
+        const fxRateToUSD = fxRatesByCurrency.get(currency) ?? null;
+        return { ...calculator.enrichHolding(holding, quote?.price ?? null, fxRateToUSD), currency };
     });
     const summary = calculator.summarizePortfolio(enrichedHoldings);
 
+    // Weight is cross-holding by definition - must compare USD-normalized value, never native currency (see portfolio.calculator.js's currency-normalization note).
     const holdingsWithWeight = enrichedHoldings.map((holding) => ({
         ...holding,
         weightPercent:
-            holding.currentValue !== null && summary.totalCurrentValue > 0
-                ? (holding.currentValue / summary.totalCurrentValue) * 100
+            holding.currentValueUSD !== null && summary.totalCurrentValue > 0
+                ? (holding.currentValueUSD / summary.totalCurrentValue) * 100
                 : null,
     }));
 

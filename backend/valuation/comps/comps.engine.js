@@ -117,6 +117,10 @@ const buildCompanyMetrics = (company) => {
     return {
         ticker: company.ticker,
         name: company.name ?? null,
+        // Every dollar figure below (marketCap, enterpriseValue, revenue, ...) is in THIS company's own
+        // currency - carried through so a caller can label each row correctly instead of assuming the
+        // target's currency applies to every peer too. Multiples are dimensionless and need no currency.
+        currency: company.currency ?? null,
         price: company.price ?? null,
         marketCap: company.marketCap ?? null,
         enterpriseValue: enterpriseValueAmount,
@@ -154,7 +158,7 @@ const selectStatisticValue = (summary, statisticName) => (summary ? summary[stat
 
 /**
  * @param {object} input
- * @param {object} input.target - {ticker, name, price, marketCap, revenue, netIncome, bookValue,
+ * @param {object} input.target - {ticker, name, currency, price, marketCap, revenue, netIncome, bookValue,
  *   ebitdaInputs: {operatingIncome, depreciationAndAmortization}, debt, cash, dilutedShares}
  * @param {object[]} input.peers - same shape as target, one per selected peer
  * @param {"mean"|"median"|"p25"|"p75"} input.statistic - which peer statistic to apply to the target

@@ -563,11 +563,12 @@ const evaluatePortfolioRules = ({ holdings, summary, previousSnapshots }) => {
 
     const periodKey = dedup.dayKey();
     const source = "Portfolio holdings";
+    // Weight is cross-holding by definition - must use USD-normalized value (currentValueUSD), never native currency (see portfolio.calculator.js's currency-normalization note).
     const positions = portfolioCalculator.groupByTicker(holdings).map((position) => ({
         ...position,
         weightPercent:
-            position.currentValue !== null && summary.totalCurrentValue > 0
-                ? (position.currentValue / summary.totalCurrentValue) * 100
+            position.currentValueUSD !== null && summary.totalCurrentValue > 0
+                ? (position.currentValueUSD / summary.totalCurrentValue) * 100
                 : null,
     }));
 

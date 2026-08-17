@@ -21,7 +21,7 @@
  * @param {object|null} params.company - Company document (name, sector, industry, etc.)
  * @param {object|null} params.latestStatement - most recent FinancialStatement document
  * @param {object|null} params.quote - live market quote from market.service.getCurrentMarketData
- * @returns {object} flat bundle: {ticker, name, price, marketCap, revenue, netIncome, bookValue,
+ * @returns {object} flat bundle: {ticker, name, currency, price, marketCap, revenue, netIncome, bookValue,
  *   ebitdaInputs: {operatingIncome, depreciationAndAmortization}, debt, cash, dilutedShares,
  *   fiscalYear, marketDataAsOf}
  */
@@ -30,6 +30,8 @@ const buildCompanyBundle = ({ ticker, company, latestStatement, quote }) => ({
     name: company?.name ?? null,
     sector: company?.sector ?? null,
     industry: company?.industry ?? null,
+    // The live quote's currency (matches the live price/marketCap above) takes priority over the stored Company record's, same fallback order as price/marketCap themselves.
+    currency: quote?.currency ?? company?.currency ?? null,
     price: quote?.price?.current ?? null,
     marketCap: quote?.price?.marketCap ?? null,
     revenue: latestStatement?.incomeStatement?.totalRevenue ?? null,

@@ -45,6 +45,7 @@ const valuationService = require("../valuation/valuation.service");
 const compsService = require("../valuation/comps/comps.service");
 const compsPeerSelector = require("../valuation/comps/comps.peerSelector");
 const newsService = require("../news/news.service");
+const fxRateProvider = require("../market/providers/fxRate.provider");
 
 const ANALYSIS_YEARS = 5;
 const MAX_AUTO_PEERS = 5;
@@ -275,25 +276,40 @@ const buildDcfSection = async (ticker, options) => {
 // Comparable company analysis
 // ---------------------------------------------------------------------------
 
-const distanceByMarketCap = (targetMarketCap) => (candidate) => {
-    if (typeof targetMarketCap !== "number" || typeof candidate.marketCap !== "number") {
+const distanceByMarketCap = (targetMarketCapUSD) => (candidate) => {
+    if (typeof targetMarketCapUSD !== "number" || typeof candidate.marketCapUSD !== "number") {
         return Number.POSITIVE_INFINITY;
     }
-    return Math.abs(candidate.marketCap - targetMarketCap);
+    return Math.abs(candidate.marketCapUSD - targetMarketCapUSD);
 };
 
+/**
+ * Ranks on `marketCapUSD`, not the native-currency `marketCap` - comparing
+ * raw market caps across currencies (e.g. an INR figure against a USD
+ * target) silently misselects auto-peers for the AI report the same way
+ * it silently misranked Industry Intelligence's suggested peers and
+ * misweighted Portfolio holdings; see PortfolioCurrencyNormalization.md.
+ * Callers must attach `marketCapUSD` first (fxRate.provider.js's
+ * attachMarketCapUSD) - this function stays synchronous/pure.
+ */
 const selectAutoPeers = (target, candidates) => {
     const withStatements = candidates.filter((c) => c.hasFinancialStatements);
     const sameSector = target?.sector ? withStatements.filter((c) => c.sector === target.sector) : [];
     const pool = sameSector.length >= 2 ? sameSector : withStatements;
 
-    return [...pool].sort((a, b) => distanceByMarketCap(target?.marketCap)(a) - distanceByMarketCap(target?.marketCap)(b)).slice(0, MAX_AUTO_PEERS);
+    return [...pool]
+        .sort((a, b) => distanceByMarketCap(target?.marketCapUSD)(a) - distanceByMarketCap(target?.marketCapUSD)(b))
+        .slice(0, MAX_AUTO_PEERS);
 };
 
 const buildCompsSection = async (ticker) => {
     try {
         const { target, candidates } = await compsPeerSelector.getAvailablePeerCandidates(ticker);
-        const autoPeers = selectAutoPeers(target, candidates);
+        const [targetWithUSD, ...candidatesWithUSD] = await fxRateProvider.attachMarketCapUSD([
+            target ?? { marketCap: null, currency: null },
+            ...candidates,
+        ]);
+        const autoPeers = selectAutoPeers(target ? targetWithUSD : null, candidatesWithUSD);
 
         if (autoPeers.length < 2) {
             return unavailable(

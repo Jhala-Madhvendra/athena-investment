@@ -35,7 +35,10 @@ function PotentialPeersTable({ peers, onUseForComps }) {
                 <span className="text-xs text-ink-muted">({peer.ticker})</span>
               </td>
               <td className="px-3 py-2.5 text-ink-secondary">{peer.industry || peer.sector || '—'}</td>
-              <td className="px-3 py-2.5 text-right tabular-nums text-ink-secondary">{formatMarketCap(peer.marketCap)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-ink-secondary">
+                {formatMarketCap(peer.marketCap)}
+                {peer.currency && peer.currency !== 'USD' && <span className="ml-1 text-xs text-ink-muted">{peer.currency}</span>}
+              </td>
               <td className="px-3 py-2.5 text-right tabular-nums text-ink-secondary">{formatMetricValue(peer.revenueGrowth, 'percent')}</td>
               <td className="px-3 py-2.5 text-right tabular-nums text-ink-secondary">{formatMetricValue(peer.operatingMargin, 'percent')}</td>
               <td className="px-3 py-2.5 text-right tabular-nums text-ink-secondary">{formatMetricValue(peer.pe, 'multiple')}</td>

@@ -85,12 +85,16 @@ describe("industry.peerDiscovery.resolveReferenceUniverse", () => {
 });
 
 describe("industry.peerDiscovery.rankByMarketCapProximity", () => {
+    // Ranks on marketCapUSD (already currency-normalized by the caller via
+    // fxRate.provider.js's attachMarketCapUSD) - this pure function never
+    // touches the native-currency `marketCap` field or fetches an exchange
+    // rate itself. See PortfolioCurrencyNormalization.md.
     it("ranks candidates by closest market cap to the target, nearest first", () => {
-        const target = { marketCap: 1000 };
+        const target = { marketCapUSD: 1000 };
         const candidates = [
-            { ticker: "FAR", marketCap: 5000 },
-            { ticker: "CLOSE", marketCap: 1100 },
-            { ticker: "MID", marketCap: 2000 },
+            { ticker: "FAR", marketCapUSD: 5000 },
+            { ticker: "CLOSE", marketCapUSD: 1100 },
+            { ticker: "MID", marketCapUSD: 2000 },
         ];
 
         const ranked = rankByMarketCapProximity(target, candidates, 10);
@@ -99,21 +103,35 @@ describe("industry.peerDiscovery.rankByMarketCapProximity", () => {
     });
 
     it("caps the result at the given limit", () => {
-        const target = { marketCap: 1000 };
+        const target = { marketCapUSD: 1000 };
         const candidates = [
-            { ticker: "A", marketCap: 1000 },
-            { ticker: "B", marketCap: 1100 },
-            { ticker: "C", marketCap: 900 },
+            { ticker: "A", marketCapUSD: 1000 },
+            { ticker: "B", marketCapUSD: 1100 },
+            { ticker: "C", marketCapUSD: 900 },
         ];
 
         expect(rankByMarketCapProximity(target, candidates, 2)).toHaveLength(2);
     });
 
-    it("pushes candidates with an unknown market cap to the end rather than crashing", () => {
-        const target = { marketCap: 1000 };
+    it("ranks purely by marketCapUSD, ignoring a native-currency marketCap that would give a different (wrong) answer", () => {
+        // A candidate with a huge raw INR number but a genuinely small USD value should NOT rank as "far" just because its raw number is large.
+        const target = { marketCap: 1000, marketCapUSD: 1000 };
         const candidates = [
-            { ticker: "UNKNOWN", marketCap: null },
-            { ticker: "KNOWN", marketCap: 1050 },
+            { ticker: "TRUE_MATCH", marketCap: 1050, marketCapUSD: 1050 },
+            { ticker: "LARGE_RAW_NUMBER_SMALL_USD", marketCap: 90000, marketCapUSD: 12 }, // e.g. a small INR-denominated company
+        ];
+
+        const ranked = rankByMarketCapProximity(target, candidates, 10);
+
+        // TRUE_MATCH is genuinely closer in USD terms, even though its raw `marketCap` (1050) looks less "round" than the other's 90000.
+        expect(ranked[0].ticker).toBe("TRUE_MATCH");
+    });
+
+    it("pushes candidates with an unknown market cap to the end rather than crashing", () => {
+        const target = { marketCapUSD: 1000 };
+        const candidates = [
+            { ticker: "UNKNOWN", marketCapUSD: null },
+            { ticker: "KNOWN", marketCapUSD: 1050 },
         ];
 
         const ranked = rankByMarketCapProximity(target, candidates, 10);

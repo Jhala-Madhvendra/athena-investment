@@ -10,6 +10,7 @@ const companyService = require("../../services/company.service");
 const financialsService = require("../../financials/financials.service");
 const marketService = require("../../market/market.service");
 const peerDiscovery = require("../industry.peerDiscovery");
+const fxRateProvider = require("../../market/providers/fxRate.provider");
 const industryService = require("../industry.service");
 
 const statement = ({ year, revenue, netIncome, operatingIncome, equity, assets, debt, cash, dna, ocf, capex }) => ({
@@ -153,6 +154,32 @@ describe("industry.service.getPeerSuggestions", () => {
         // Ranking uses the target's own profile marketCap from resolveReferenceUniverse (3000, not a live quote):
         // distances are A=0, D=100, B=200, C=200 -> closest two are A then D.
         expect(result.suggestedPeers.map((p) => p.ticker)).toEqual(["A", "D"]);
+    });
+
+    it("ranks by USD-normalized market cap, not raw currency-mixed numbers, when the universe spans currencies", async () => {
+        // Target: $3,000 USD. Candidate RUPEE_CLOSE: raw 90,000 INR (~$1,028 at 87.5/USD) - genuinely close to target.
+        // Candidate RAW_CLOSE: raw marketCap 3,050 but in INR (~$35) - would look "closest" if compared as raw numbers, but is actually far.
+        const rateSpy = jest.spyOn(fxRateProvider, "getRateToUSD").mockImplementation(async (currency) => (currency === "INR" ? 1 / 87.5 : 1));
+        industryService.invalidateUniverseCache(); // avoid a cache hit from an earlier test's identical universe level:key
+
+        peerDiscovery.resolveReferenceUniverse.mockResolvedValue({
+            target: { ...TARGET, marketCap: 3000, currency: "USD" },
+            universe: UNIVERSE,
+            candidates: [
+                member("RAW_CLOSE", { marketCap: 3050, currency: "INR" }), // looks closest by raw number, actually ~$35
+                member("RUPEE_CLOSE", { marketCap: 90000, currency: "INR" }), // looks far by raw number, actually ~$1,028 - genuinely closer
+            ],
+        });
+        // No live quote for either candidate - loadMemberBundle falls back to each candidate's own stored marketCap/currency above, not a mocked live one.
+        marketService.getCurrentMarketData.mockImplementation((ticker) =>
+            ticker === "AAPL" ? Promise.resolve(quote(4000)) : Promise.resolve(null)
+        );
+
+        const result = await industryService.getPeerSuggestions("AAPL", 2);
+
+        expect(result.suggestedPeers.map((p) => p.ticker)).toEqual(["RUPEE_CLOSE", "RAW_CLOSE"]);
+
+        rateSpy.mockRestore();
     });
 });
 

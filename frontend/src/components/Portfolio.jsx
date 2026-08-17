@@ -7,6 +7,7 @@ import ErrorState from './ui/ErrorState'
 import EmptyState from './ui/EmptyState'
 import SectionHeader from './ui/SectionHeader'
 import StatCard from './ui/StatCard'
+import PortfolioAnalyticsSection from './portfolio/PortfolioAnalyticsSection'
 import { fetchJson } from '../lib/api'
 import { formatPercent, formatPerShare } from '../lib/compsFormat'
 import { getSentimentTier } from '../lib/scoreTokens'
@@ -394,6 +395,8 @@ function Portfolio() {
               </table>
             </div>
           </Card>
+
+          <PortfolioAnalyticsSection holdingsCount={holdings.length} />
         </>
       )}
 

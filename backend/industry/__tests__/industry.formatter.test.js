@@ -100,7 +100,7 @@ describe("industry.formatter.formatPeersResponse", () => {
         });
 
         expect(response.peers).toEqual([
-            { ticker: "MSFT", name: "Microsoft", sector: "Technology", industry: "Software", marketCap: 3000, revenueGrowth: 12, operatingMargin: 40, pe: 30 },
+            { ticker: "MSFT", name: "Microsoft", sector: "Technology", industry: "Software", marketCap: 3000, currency: null, revenueGrowth: 12, operatingMargin: 40, pe: 30 },
         ]);
         expect(response.limitation).toMatch(/not.*canonical peer set/i);
     });

@@ -23,8 +23,14 @@ const MULTIPLE_COLUMNS = [
  * rendered as "—" (never a misleading zero), with the specific exclusion
  * reason available on hover via `title` - see comps.engine.js for how
  * those reasons are derived.
+ *
+ * Each row's dollar figures (Market Cap, EV, Revenue, ...) are labeled with
+ * that ROW'S OWN currency (`row.currency`), never the target's - a peer
+ * trading in a different currency than the target must not be silently
+ * mislabeled as if its raw number were in the target's currency. Multiples
+ * (P/E, EV/EBITDA, ...) are dimensionless and carry no currency label.
  */
-function PeerComparisonTable({ target, peers, currency }) {
+function PeerComparisonTable({ target, peers }) {
   const rows = [
     { ...target, isTarget: true },
     ...peers.map((peer) => ({ ...peer, isTarget: false })),
@@ -67,7 +73,7 @@ function PeerComparisonTable({ target, peers, currency }) {
               </td>
               {COLUMNS.map((column) => (
                 <td key={column.key} className="px-3 py-2.5 text-right tabular-nums text-ink-secondary">
-                  {formatMoney(row[column.key], currency)}
+                  {formatMoney(row[column.key], row.currency)}
                 </td>
               ))}
               {MULTIPLE_COLUMNS.map((column) => {
