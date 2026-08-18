@@ -58,7 +58,7 @@ function RecentAlerts({ ticker }) {
       {!loading && error && <p className="text-sm text-ink-muted">Alerts are unavailable right now.</p>}
 
       {!loading && !error && alerts.length === 0 && (
-        <EmptyState icon={Bell} title="No recent alerts" message={`Nothing meaningful has been detected yet for ${ticker}.`} />
+        <EmptyState compact icon={Bell} title="No recent alerts" message={`Nothing meaningful has been detected yet for ${ticker}.`} />
       )}
 
       {!loading && !error && alerts.length > 0 && (

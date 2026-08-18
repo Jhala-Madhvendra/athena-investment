@@ -1,8 +1,12 @@
 import { Inbox } from 'lucide-react';
 
-function EmptyState({ title = 'Nothing here yet', message, icon: Icon = Inbox, action }) {
+function EmptyState({ title = 'Nothing here yet', message, icon: Icon = Inbox, action, compact = false }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-strong bg-surface-sunken/40 px-6 py-16 text-center">
+    <div
+      className={`flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-strong bg-surface-sunken/40 px-6 text-center ${
+        compact ? 'py-6' : 'py-16'
+      }`}
+    >
       <span className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-sunken text-ink-muted">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
