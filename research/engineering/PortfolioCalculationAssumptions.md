@@ -1,5 +1,70 @@
 # Engineering Concept: Portfolio Calculation Assumptions
 
+## Sprint 15 update: transaction-aware historical reconstruction
+
+Sprint 14 (below) shipped every historical metric as a documented estimate, because Athena had no transaction ledger - only current `Holding` lots. Sprint 15 adds one (`backend/portfolio/transaction.model.js`) and, wherever it's usable, **replaces the estimate with an actual reconstruction** rather than layering more approximation on top of it. The two methodologies now coexist per-request:
+
+- **Transaction-aware** (`assumptions.historicalMethodology.type === "transaction_aware"`) - used whenever a user's recorded BUY/SELL history produces at least `MIN_OBSERVATIONS_FOR_SERIES` (10) usable daily observations for the requested window.
+- **Current-weights-backward** (`type === "current_weights_backward"`) - the original Sprint 14 estimate, still used as a fallback: no ledger at all, or too little of one for this window. Never removed - see "How Athena implements it" below for why it has to stay.
+
+### How reconstruction works
+
+```
+Transaction (BUY/SELL rows)
+    -> holdingsReconstruction.calculator.js: replay chronologically -> holdings per date
+    -> portfolioHistory.service.js: value reconstructed holdings at real historical prices (MarketHistory)
+    -> {date, return}[] series
+    -> the SAME portfolio.analytics.calculator.js functions Sprint 14 already had
+       (calculateVolatility / calculateSharpeRatio / calculateMaxDrawdown / calculatePeriodReturn)
+```
+
+Historical analytics never reads a `Transaction` row directly - `portfolio.analytics.service.js` only ever consumes a `{date, return}[]` series, sourced from whichever methodology applies. This is why volatility/Sharpe/drawdown needed zero code changes to become transaction-aware; only the series feeding them changed.
+
+### Ordering and edits
+
+Transactions replay by `transactionDate`, then `createdAt`, then `_id` - deterministic even for same-day transactions or out-of-order inserts. Editing or deleting a transaction re-validates the **entire affected ticker's timeline** (`transaction.service.js`'s `assertNoNegativeHoldings`), not just the row being touched - an edit to an old BUY can invalidate a later SELL that depended on it, and that must be caught at write time, not silently produce negative holdings later.
+
+### What "sufficient transaction history" means here
+
+A user is "transaction-aware eligible" purely by having at least one `Transaction` row - independent of whatever `Holding` rows they also have. **`Holding` and `Transaction` are not synchronized or reconciled with each other** (see PortfolioDataModel.md). This means:
+
+- Adding a `Holding` does not create a `Transaction`, and vice versa. A user who has only ever used the Sprint 9 holdings UI has zero transactions and stays on the legacy methodology until they record some.
+- `analyticsStartDate` (the earliest recorded `transactionDate`) is the boundary before which Athena will not claim to know historical holdings - see PortfolioHistoricalDataBoundary below. A window that starts before it is clipped (`historicalMethodology.windowClipped: true`), never silently backfilled by assuming today's - or the ledger's earliest known - holdings applied earlier.
+- No attempt is made to reconcile a user's *current* reconstructed-from-transactions holdings against their current `Holding` rows. They can legitimately disagree (e.g. a `Holding` edited directly without a matching `Transaction`), and Athena does not flag or resolve that disagreement - full tax-lot-accounting-style reconciliation is out of scope (see "Non-goals" below).
+
+### Cash flows: why some days are excluded, not estimated
+
+Athena has no cash ledger - a BUY's funding source and a SELL's proceeds destination are both untracked, so a portfolio-value jump on a transaction day can't be attributed to market movement vs. capital added/removed. Rather than compute a distorted return (or fabricate a time-weighted/money-weighted return with no cash-flow data to support it), `portfolioHistory.service.js`'s `buildTransactionAwareReturnSeries` **excludes** any date pair where:
+
+1. Reconstructed holdings differ between the two dates (`excludedTransactionDays`) - a BUY/SELL happened.
+2. A currently-held ticker is missing a price on either date (`excludedMissingPriceDays`).
+3. The prior date's reconstructed value is zero, e.g. before any purchase (`excludedZeroValueDays`).
+
+All three counts are returned in `assumptions.historicalMethodology` so a caller can see exactly how much of the window was usable, not just a return number with no indication of gaps.
+
+### Distinguishing asset return, portfolio return, time-weighted, and money-weighted return
+
+Athena computes exactly two of these four, and is explicit about not computing the other two:
+
+- **Asset return** - a single ticker's own price return (`computeDailyReturns` in `portfolio.analytics.calculator.js`). Always available from `MarketHistory`, unaffected by any of the above.
+- **Portfolio return** (this document's subject) - the reconstructed holdings' value return over time, excluding transaction days as above. This is *not* a time-weighted return in the formal sense (a true TWR resets/geometrically-links sub-period returns specifically at each cash-flow date); it's closer to "the return of a static basket, for the sub-periods where the basket didn't change."
+- **Time-weighted return (TWR)** - requires knowing exactly when *external* cash entered/left the portfolio (deposits/withdrawals) so each sub-period's return can be isolated from contribution timing. Athena has no deposit/withdrawal ledger (see Sprint 15's explicit non-goals), so **Athena does not claim to compute TWR** - excluding transaction days is the defensible substitute given the data that exists, not a TWR implementation.
+- **Money-weighted return / IRR** - requires the full signed cash-flow timeline (every external contribution/withdrawal amount and date) to solve for the discount rate that zeroes out net present value. Athena has none of that data. **Not computed, not approximated.**
+
+### Historical data boundary
+
+`portfolioHistory.service.js`'s `getReconstructionStatus` returns `analyticsStartDate` = the earliest `transactionDate` in a user's ledger. Nothing before it is ever presented as known - `getHoldingsAt` for an earlier date returns empty holdings with `beforeAnalyticsStartDate: true`, and `buildTransactionAwareReturnSeries` clips its usable date range to start there (`windowClipped: true` when the requested window's data would otherwise reach further back). This mirrors Sprint 14's "Interview questions" answer #1 almost exactly - the boundary shrinks the approximation's blast radius over time as more transactions accumulate, rather than fixing the past retroactively.
+
+### Non-goals (explicitly out of scope for this reconstruction)
+
+Tax lots, FIFO/LIFO accounting, capital gains taxation, dividend reinvestment, stock splits/corporate actions, options, short selling, margin, multi-currency FX accounting inside the ledger itself, broker synchronization, deposits/withdrawals, transfer accounting, a full TWR engine, and money-weighted return/IRR are all out of scope. The `Transaction.type` enum (`BUY`/`SELL` today) is deliberately additive - new types like `DIVIDEND`/`DEPOSIT`/`SPLIT` can be introduced later without a schema redesign, but none are invented now just because the schema *could* support them later.
+
+---
+
+# Sprint 14 (original): current-weights-backward methodology
+
+The rest of this document is preserved as-is - it's still the accurate description of the fallback methodology used whenever transaction-aware reconstruction isn't available for a request.
+
 ## What it is
 
 Every historical metric Sprint 14 computes - period return, annualized return, volatility, Sharpe Ratio, max drawdown, correlation - is built on one foundational assumption, stated once and referenced everywhere rather than re-derived per metric:

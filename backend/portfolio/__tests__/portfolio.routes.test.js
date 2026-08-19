@@ -25,10 +25,12 @@ jest.mock("../portfolio.service", () => ({
 }));
 jest.mock("../../services/company.service", () => ({ resolveTicker: jest.fn() }));
 jest.mock("../../identity/identity.service", () => ({ resolveUserIdByToken: jest.fn() }));
+jest.mock("../portfolioHistory.service", () => ({ getHoldingsAt: jest.fn(), getHoldingsTimeline: jest.fn() }));
 
 const portfolioService = require("../portfolio.service");
 const companyService = require("../../services/company.service");
 const identityService = require("../../identity/identity.service");
+const portfolioHistoryService = require("../portfolioHistory.service");
 const portfolioRoutes = require("../portfolio.routes");
 
 const app = express();
@@ -143,6 +145,46 @@ describe("POST /api/portfolio/holdings", () => {
             "user1",
             expect.objectContaining({ ticker: "AAPL", shares: 10 })
         );
+    });
+});
+
+describe("GET /api/portfolio/holdings (reconstructed, as-of a date)", () => {
+    beforeEach(() => {
+        identityService.resolveUserIdByToken.mockResolvedValue("user1");
+    });
+
+    it("returns 400 when ?date is missing or invalid", async () => {
+        const missing = await request(app).get("/api/portfolio/holdings").set("Authorization", "Bearer good-token");
+        const invalid = await request(app).get("/api/portfolio/holdings?date=not-a-date").set("Authorization", "Bearer good-token");
+
+        expect(missing.status).toBe(400);
+        expect(invalid.status).toBe(400);
+        expect(portfolioHistoryService.getHoldingsAt).not.toHaveBeenCalled();
+    });
+
+    it("scopes the reconstruction to the caller's own userId", async () => {
+        portfolioHistoryService.getHoldingsAt.mockResolvedValue({ asOfDate: "2025-06-01", holdings: { AAPL: 10 }, hasTransactionHistory: true });
+
+        const response = await request(app).get("/api/portfolio/holdings?date=2025-06-01").set("Authorization", "Bearer good-token");
+
+        expect(response.status).toBe(200);
+        expect(response.body.holdings).toEqual({ AAPL: 10 });
+        expect(portfolioHistoryService.getHoldingsAt).toHaveBeenCalledWith("user1", "2025-06-01");
+    });
+});
+
+describe("GET /api/portfolio/holdings/history", () => {
+    beforeEach(() => {
+        identityService.resolveUserIdByToken.mockResolvedValue("user1");
+    });
+
+    it("returns the reconstructed timeline for the caller's own userId", async () => {
+        portfolioHistoryService.getHoldingsTimeline.mockResolvedValue({ hasTransactionHistory: true, timeline: [] });
+
+        const response = await request(app).get("/api/portfolio/holdings/history").set("Authorization", "Bearer good-token");
+
+        expect(response.status).toBe(200);
+        expect(portfolioHistoryService.getHoldingsTimeline).toHaveBeenCalledWith("user1");
     });
 });
 

@@ -8,12 +8,23 @@
  * calculators (portfolio.analytics.calculator.js/.risk.js/.exposure.js/
  * .correlation.js) to produce the analytics payload.
  *
- * HISTORICAL WEIGHT METHODOLOGY - see portfolio.analytics.calculator.js's
- * header. Every historical metric here (volatility, Sharpe, drawdown,
- * period return, correlation) is built from TODAY'S weights applied
- * backward over historical returns, not a true historical portfolio
- * record. This is surfaced in `assumptions.historicalWeightMethodology`
- * on every response, not just documented in code comments.
+ * HISTORICAL METHODOLOGY (Sprint 15)
+ * ------------------------------------
+ * Every historical metric here (volatility, Sharpe, drawdown, period
+ * return, benchmark correlation) is built from ONE portfolioReturnSeries,
+ * sourced from whichever of these two is usable for the request:
+ *   1. Transaction-aware (preferred): portfolioHistory.service reconstructs
+ *      actual holdings-on-each-date from the user's Transaction ledger and
+ *      values them at real historical prices. Used whenever it produces at
+ *      least MIN_OBSERVATIONS_FOR_SERIES usable days for the window.
+ *   2. Legacy fallback (portfolio.analytics.calculator.js's documented
+ *      approximation): TODAY'S weights applied backward over each
+ *      holding's own historical returns - used when the user has no
+ *      transaction ledger, or too little of one for this window.
+ * Which one was used, and why, is always surfaced in
+ * `assumptions.historicalMethodology.type` and the human-readable
+ * `assumptions.historicalWeightMethodology` string - never silently picked.
+ * See PortfolioCalculationAssumptions.md.
  *
  * BENCHMARK
  * ---------
@@ -32,21 +43,22 @@
  *
  * CACHING
  * -------
- * Cache key: `${userId}:${window}:${benchmarkParam}:${portfolioVersion}`.
- * `portfolioVersion` is a cheap deterministic string built from the raw
- * Holding rows (ticker/shares/price/date) - it changes the instant a user
- * adds/edits/deletes a holding, so a cache hit is only possible when the
- * user's holdings are unchanged, before spending anything on the
- * expensive part (N historical-price fetches + correlation matrix). TTL
- * on top of that (ANALYTICS_CACHE_TTL_MS) bounds staleness of the
- * underlying market data itself. Always keyed by userId first - never
- * shared across users, unlike market.service's ticker-only quote cache.
+ * Cache key: `${userId}:${window}:${benchmarkParam}:${portfolioVersion}:${transactionsVersion}`.
+ * `portfolioVersion` and `transactionsVersion` are cheap deterministic
+ * strings built from the raw Holding rows and Transaction rows
+ * respectively - either changing (a holding OR a transaction added,
+ * edited, or deleted) invalidates the cache, since both now feed the
+ * response. TTL on top of that (ANALYTICS_CACHE_TTL_MS) bounds staleness
+ * of the underlying market data itself. Always keyed by userId first -
+ * never shared across users, unlike market.service's ticker-only quote
+ * cache.
  */
 
 const Holding = require("./holding.model");
 const Company = require("../models/company.model");
 const portfolioService = require("./portfolio.service");
 const portfolioCalculator = require("./portfolio.calculator");
+const portfolioHistoryService = require("./portfolioHistory.service");
 const marketService = require("../market/market.service");
 const companyService = require("../services/company.service");
 const riskFreeRateProvider = require("../valuation/providers/riskFreeRate.provider");
@@ -83,6 +95,7 @@ const labeled = (value, source, note) => ({
 
 const emptyCorrelation = (reason) => ({ available: false, reason, tickers: [], matrix: {}, observations: {} });
 
+/** Holdings-only half of the cache key. Combined with the transactions version below - both must be unchanged for a cache hit, since the transaction ledger drives a separate (transaction-aware) part of the response now. */
 const buildPortfolioVersion = async (userId) => {
     const rows = await Holding.find({ userId })
         .select("ticker shares averagePurchasePrice purchaseDate -_id")
@@ -135,12 +148,12 @@ const resolveDefaultBenchmarkTicker = (pricedPositions, companiesByTicker) => {
     return EXCHANGE_BENCHMARK_MAP[topExchange] || DEFAULT_BENCHMARK_TICKER;
 };
 
-/** Resolves + fetches the benchmark's own period return for context. Never throws - any failure degrades to a null/unresolved benchmark rather than failing the whole analytics request, since Beta itself doesn't depend on this succeeding. */
+/** Resolves + fetches the benchmark's own period return (and daily return series, for correlation) for context. Never throws - any failure degrades to a null/unresolved benchmark rather than failing the whole analytics request, since Beta itself doesn't depend on this succeeding. */
 const resolveBenchmark = async (candidateTicker, source, window) => {
     try {
         const resolvedTicker = await companyService.resolveTicker(candidateTicker);
         if (!resolvedTicker) {
-            return { ticker: candidateTicker, resolved: false, source, periodReturnPercent: null };
+            return { ticker: candidateTicker, resolved: false, source, periodReturnPercent: null, dailyReturns: [] };
         }
 
         const bars = await marketService.getHistoricalPrices(resolvedTicker, window);
@@ -152,13 +165,22 @@ const resolveBenchmark = async (candidateTicker, source, window) => {
             resolved: true,
             source,
             periodReturnPercent: periodReturn !== null ? periodReturn * 100 : null,
+            dailyReturns: returns,
         };
     } catch {
-        return { ticker: candidateTicker, resolved: false, source, periodReturnPercent: null };
+        return { ticker: candidateTicker, resolved: false, source, periodReturnPercent: null, dailyReturns: [] };
     }
 };
 
-function buildAssumptions({ window, benchmarkTicker, benchmarkSource, riskFreeRate }) {
+const TRANSACTION_AWARE_METHODOLOGY_NOTE =
+    "Historical risk metrics are computed from your actual recorded transaction history - holdings are reconstructed on each date from your Transaction ledger, then valued at that date's real historical prices. Days where a BUY/SELL changed your holdings, or a held ticker's price was unavailable, are excluded from the return series rather than estimated. See PortfolioCalculationAssumptions.md.";
+
+const CURRENT_WEIGHTS_METHODOLOGY_NOTE =
+    "Historical risk metrics are estimated by applying today's portfolio weights to each holding's own historical price returns - not a reconstruction of this portfolio's actual historical value. Record transactions (POST /api/portfolio/transactions) to switch to transaction-aware reconstruction. See PortfolioCalculationAssumptions.md.";
+
+function buildAssumptions({ window, benchmarkTicker, benchmarkSource, riskFreeRate, historicalMethodology }) {
+    const methodology = historicalMethodology || { type: "current_weights_backward" };
+
     return {
         analysisPeriod: {
             window,
@@ -174,8 +196,11 @@ function buildAssumptions({ window, benchmarkTicker, benchmarkSource, riskFreeRa
                     : "User-specified via the benchmark parameter.",
         },
         riskFreeRate,
+        // `type` is the machine-readable signal for "was this actually reconstructed from your transactions, or estimated" -
+        // historicalWeightMethodology stays as the human-readable sentence, its content now varies with `type`.
+        historicalMethodology: methodology,
         historicalWeightMethodology:
-            "Historical risk metrics are estimated by applying today's portfolio weights to each holding's own historical price returns - not a reconstruction of this portfolio's actual historical value. Athena does not store historical transactions or daily holdings snapshots. See PortfolioCalculationAssumptions.md.",
+            methodology.type === "transaction_aware" ? TRANSACTION_AWARE_METHODOLOGY_NOTE : CURRENT_WEIGHTS_METHODOLOGY_NOTE,
         tradingDaysPerYearAssumption: analyticsCalculator.TRADING_DAYS_PER_YEAR,
         dataFreshness: { generatedAt: new Date().toISOString() },
     };
@@ -225,7 +250,39 @@ const computeAnalytics = async (userId, window, benchmarkParam) => {
         weightsByTicker[position.ticker] = position.weightPercent / 100;
     });
 
-    const portfolioReturnSeries = analyticsCalculator.buildPortfolioReturnSeries(returnsByTicker, weightsByTicker);
+    const legacyPortfolioReturnSeries = analyticsCalculator.buildPortfolioReturnSeries(returnsByTicker, weightsByTicker);
+
+    // Transaction-aware reconstruction takes priority whenever it produces
+    // enough observations to be meaningful - see portfolioHistory.service.js's
+    // module header for why some days are excluded rather than estimated.
+    // Falls back to the legacy "today's weights applied backward" series
+    // (still disclosed as an estimate, see buildAssumptions) when the user
+    // hasn't recorded transactions, or hasn't recorded enough of them yet.
+    const transactionAware = await portfolioHistoryService
+        .buildTransactionAwareReturnSeries(userId, window)
+        .catch(() => ({ available: false, reason: "Transaction-aware reconstruction failed unexpectedly.", series: [] }));
+
+    const useTransactionAware = transactionAware.available && transactionAware.series.length >= analyticsCalculator.MIN_OBSERVATIONS_FOR_SERIES;
+    const portfolioReturnSeries = useTransactionAware ? transactionAware.series : legacyPortfolioReturnSeries;
+
+    const historicalMethodology = useTransactionAware
+        ? {
+              type: "transaction_aware",
+              analyticsStartDate: transactionAware.analyticsStartDate,
+              windowClipped: transactionAware.windowClipped,
+              excludedTransactionDays: transactionAware.excludedTransactionDays,
+              excludedMissingPriceDays: transactionAware.excludedMissingPriceDays,
+              excludedZeroValueDays: transactionAware.excludedZeroValueDays,
+          }
+        : {
+              type: "current_weights_backward",
+              // Surfaced even on the fallback path so a caller can tell "no ledger at all" apart from "ledger exists but too short/thin for this window."
+              transactionHistoryAvailable: transactionAware.available,
+              reason: transactionAware.available
+                  ? `Transaction ledger only produced ${transactionAware.series.length} usable observations for this window (need at least ${analyticsCalculator.MIN_OBSERVATIONS_FOR_SERIES}).`
+                  : transactionAware.reason,
+          };
+
     const periodReturn = analyticsCalculator.calculatePeriodReturn(portfolioReturnSeries);
     const observedTradingDays = portfolioReturnSeries.length;
     const annualizedReturnValue = analyticsCalculator.annualizeReturn(periodReturn, observedTradingDays);
@@ -248,7 +305,20 @@ const computeAnalytics = async (userId, window, benchmarkParam) => {
 
     const benchmarkCandidate = benchmarkParam || resolveDefaultBenchmarkTicker(pricedPositions, companiesByTicker);
     const benchmarkSource = benchmarkParam ? "user" : "auto";
-    const benchmark = await resolveBenchmark(benchmarkCandidate, benchmarkSource, window);
+    const resolvedBenchmark = await resolveBenchmark(benchmarkCandidate, benchmarkSource, window);
+
+    // Correlation between the ACTUAL portfolio return series used above (transaction-aware when available, legacy otherwise) and the benchmark's own daily returns - each date pair drawn from wherever both series have data, same overlap rule as the holdings-pairwise matrix below.
+    const benchmarkCorrelation = resolvedBenchmark.resolved
+        ? correlationCalculator.calculatePairwiseCorrelation(portfolioReturnSeries, resolvedBenchmark.dailyReturns)
+        : { correlation: null, observations: 0 };
+    const benchmark = {
+        ticker: resolvedBenchmark.ticker,
+        resolved: resolvedBenchmark.resolved,
+        source: resolvedBenchmark.source,
+        periodReturnPercent: resolvedBenchmark.periodReturnPercent,
+        correlation: benchmarkCorrelation.correlation,
+        correlationObservations: benchmarkCorrelation.observations,
+    };
 
     const classifyBySector = (ticker) => companiesByTicker.get(ticker)?.sector || null;
     const classifyByIndustry = (ticker) => companiesByTicker.get(ticker)?.industry || null;
@@ -274,13 +344,15 @@ const computeAnalytics = async (userId, window, benchmarkParam) => {
             periodReturnPercent: periodReturn !== null ? periodReturn * 100 : null,
             annualizedReturnPercent: annualizedReturnValue !== null ? annualizedReturnValue * 100 : null,
             periodReturnMethodology:
-                "Estimated by applying today's holding weights to each holding's own historical daily returns over the selected window, then compounding - not a reconstruction of this portfolio's actual historical value.",
+                historicalMethodology.type === "transaction_aware"
+                    ? "Compounded from the transaction-aware return series: reconstructed holdings valued at each date's real historical price, days spanning a BUY/SELL excluded."
+                    : "Estimated by applying today's holding weights to each holding's own historical daily returns over the selected window, then compounding - not a reconstruction of this portfolio's actual historical value.",
             observedTradingDays,
             benchmark,
         },
         risk: {
             volatilityPercent: volatility !== null ? volatility * 100 : null,
-            volatilityMethodology: `Annualized standard deviation of estimated daily portfolio returns (daily std dev x sqrt(${analyticsCalculator.TRADING_DAYS_PER_YEAR})).`,
+            volatilityMethodology: `Annualized standard deviation of ${historicalMethodology.type === "transaction_aware" ? "transaction-aware reconstructed" : "estimated"} daily portfolio returns (daily std dev x sqrt(${analyticsCalculator.TRADING_DAYS_PER_YEAR})).`,
             beta: betaResult.beta,
             betaCoveragePercent: betaResult.coveragePercent,
             betaExcludedTickers: betaResult.excludedTickers,
@@ -296,7 +368,13 @@ const computeAnalytics = async (userId, window, benchmarkParam) => {
         holdings: pricedPositions.map((p) => ({ ticker: p.ticker, valueUSD: p.currentValueUSD, weightPercent: p.weightPercent })),
         unpricedHoldings: summary.unpricedHoldings,
         correlation,
-        assumptions: buildAssumptions({ window, benchmarkTicker: benchmark.ticker, benchmarkSource, riskFreeRate: riskFreeRateLabeled }),
+        assumptions: buildAssumptions({
+            window,
+            benchmarkTicker: benchmark.ticker,
+            benchmarkSource,
+            riskFreeRate: riskFreeRateLabeled,
+            historicalMethodology,
+        }),
     };
 };
 
@@ -308,7 +386,11 @@ const getPortfolioAnalytics = async (userId, { window, benchmark }) => {
         return emptyPortfolioAnalytics(window, benchmark);
     }
 
-    const cacheKey = `${userId}:${window}:${benchmark || "auto"}:${portfolioVersion}`;
+    // Included in the cache key alongside portfolioVersion - the transaction
+    // ledger now drives its own part of the response, so a cache hit
+    // requires both to be unchanged.
+    const transactionsVersion = await portfolioHistoryService.getTransactionsVersion(userId);
+    const cacheKey = `${userId}:${window}:${benchmark || "auto"}:${portfolioVersion}:${transactionsVersion}`;
     const cached = analyticsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
         return cached.data;

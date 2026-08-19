@@ -8,6 +8,7 @@ import EmptyState from './ui/EmptyState'
 import SectionHeader from './ui/SectionHeader'
 import StatCard from './ui/StatCard'
 import PortfolioAnalyticsSection from './portfolio/PortfolioAnalyticsSection'
+import TransactionsSection from './portfolio/TransactionsSection'
 import { fetchJson } from '../lib/api'
 import { formatPercent, formatPerShare } from '../lib/compsFormat'
 import { getSentimentTier } from '../lib/scoreTokens'
@@ -48,6 +49,12 @@ function Portfolio() {
   const [rowError, setRowError] = useState('')
   const [watchlistState, setWatchlistState] = useState({})
   const [alertCounts, setAlertCounts] = useState({})
+
+  // Bumped whenever TransactionsSection records/edits/deletes a transaction,
+  // so PortfolioAnalyticsSection re-fetches - its server-side cache key
+  // already accounts for the ledger changing, the frontend just needs a
+  // reason to re-run the effect that calls it.
+  const [transactionsVersion, setTransactionsVersion] = useState(0)
 
   const loadPortfolio = async (signal) => {
     setLoading(true)
@@ -396,9 +403,18 @@ function Portfolio() {
             </div>
           </Card>
 
-          <PortfolioAnalyticsSection holdingsCount={holdings.length} />
+          <PortfolioAnalyticsSection holdingsCount={holdings.length} transactionsVersion={transactionsVersion} />
         </>
       )}
+
+      {/*
+        Rendered regardless of whether the user has current Holding rows -
+        the Transaction ledger is a separate, additive input (see
+        TransactionsSection's header comment), so someone who's only ever
+        recorded transactions (no Holding yet) must still be able to see
+        and manage them here.
+      */}
+      <TransactionsSection onTransactionsChanged={() => setTransactionsVersion((v) => v + 1)} />
 
       <p className="text-xs text-ink-muted">
         This is an analytical tracker only - Athena does not connect to a brokerage, execute trades, or recommend

@@ -26,9 +26,13 @@ const WINDOW_OPTIONS = [
  * exposure, concentration, and correlation. Fetched separately from
  * GET /api/portfolio (Sprint 9's cost-basis view above this section) since
  * this endpoint does real historical-data work and is cached server-side;
- * re-fetches only when the user changes the analysis window or benchmark.
+ * re-fetches when the user changes the analysis window/benchmark, or when
+ * `transactionsVersion` changes (bumped by TransactionsSection after a
+ * write, so recording a transaction is reflected without an unrelated
+ * input change first). Response methodology (transaction-aware vs.
+ * estimated) is surfaced in AssumptionsPanel below, not decided here.
  */
-function PortfolioAnalyticsSection({ holdingsCount }) {
+function PortfolioAnalyticsSection({ holdingsCount, transactionsVersion }) {
   const [window_, setWindow] = useState('1y')
   const [benchmarkInput, setBenchmarkInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -59,7 +63,12 @@ function PortfolioAnalyticsSection({ holdingsCount }) {
     }
     load()
     return () => controller.abort()
-  }, [holdingsCount, window_, benchmarkInput])
+    // transactionsVersion isn't used in the request itself - it's a pure
+    // re-fetch trigger so a transaction recorded/edited/deleted below is
+    // reflected here without the user needing to change window/benchmark
+    // first. The server-side cache key already accounts for the ledger
+    // changing (see portfolio.analytics.service.js), so this just asks again.
+  }, [holdingsCount, window_, benchmarkInput, transactionsVersion])
 
   const windowSelector = (
     <div className="flex items-center gap-2">

@@ -1,9 +1,11 @@
 const mongoose = require("mongoose");
 const portfolioService = require("./portfolio.service");
+const portfolioHistoryService = require("./portfolioHistory.service");
 const companyService = require("../services/company.service");
 const { resolveTickerParam, sendServiceError } = require("../utils/httpErrors");
 
 const isValidObjectId = (id) => typeof id === "string" && mongoose.Types.ObjectId.isValid(id);
+const isValidDateString = (value) => typeof value === "string" && !Number.isNaN(new Date(value).getTime());
 
 const getPortfolio = async (req, res) => {
     try {
@@ -75,4 +77,29 @@ const deleteHolding = async (req, res) => {
     }
 };
 
-module.exports = { getPortfolio, getSummary, addHolding, updateHolding, deleteHolding };
+/** GET /api/portfolio/holdings?date=YYYY-MM-DD - reconstructed holdings from the Transaction ledger, not today's Holding rows. Requires ?date - see PortfolioCalculationAssumptions.md for why this doesn't fall back to "current holdings" when the ledger is empty. */
+const getHoldingsAt = async (req, res) => {
+    try {
+        const { date } = req.query;
+        if (!isValidDateString(date)) {
+            return res.status(400).json({ message: "A valid ?date=YYYY-MM-DD query parameter is required." });
+        }
+
+        const result = await portfolioHistoryService.getHoldingsAt(req.userId, date);
+        return res.status(200).json(result);
+    } catch (error) {
+        return sendServiceError(res, error, 500);
+    }
+};
+
+/** GET /api/portfolio/holdings/history - the full reconstructed holdings timeline, one interval per composition change. */
+const getHoldingsHistory = async (req, res) => {
+    try {
+        const result = await portfolioHistoryService.getHoldingsTimeline(req.userId);
+        return res.status(200).json(result);
+    } catch (error) {
+        return sendServiceError(res, error, 500);
+    }
+};
+
+module.exports = { getPortfolio, getSummary, addHolding, updateHolding, deleteHolding, getHoldingsAt, getHoldingsHistory };

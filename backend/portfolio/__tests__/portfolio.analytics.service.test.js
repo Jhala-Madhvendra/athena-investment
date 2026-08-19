@@ -4,6 +4,10 @@ jest.mock("../../models/company.model", () => ({ find: jest.fn() }));
 jest.mock("../../market/market.service", () => ({ getHistoricalPrices: jest.fn(), getCurrentMarketData: jest.fn() }));
 jest.mock("../../services/company.service", () => ({ resolveTicker: jest.fn() }));
 jest.mock("../../valuation/providers/riskFreeRate.provider", () => ({ getRiskFreeRate: jest.fn() }));
+jest.mock("../portfolioHistory.service", () => ({
+    buildTransactionAwareReturnSeries: jest.fn(),
+    getTransactionsVersion: jest.fn(),
+}));
 
 const Holding = require("../holding.model");
 const Company = require("../../models/company.model");
@@ -11,7 +15,11 @@ const portfolioService = require("../portfolio.service");
 const marketService = require("../../market/market.service");
 const companyService = require("../../services/company.service");
 const riskFreeRateProvider = require("../../valuation/providers/riskFreeRate.provider");
+const portfolioHistoryService = require("../portfolioHistory.service");
 const portfolioAnalyticsService = require("../portfolio.analytics.service");
+
+/** No transaction ledger for this user - every pre-existing test exercises the legacy "today's weights backward" fallback, matching Sprint 14 behavior exactly. Transaction-aware-specific behavior is covered in its own describe block below. */
+const NO_TRANSACTION_HISTORY = { available: false, reason: "No transaction history recorded for this user - cannot reconstruct historical holdings.", series: [] };
 
 const chainableSelectLean = (docs) => ({ select: jest.fn(() => ({ lean: jest.fn(() => Promise.resolve(docs)) })) });
 
@@ -43,6 +51,11 @@ const enrichedHolding = (ticker, currentValue, costBasis = 1000) => ({
     priceUnavailable: false,
     fxRateUnavailable: false,
     currency: "USD",
+});
+
+beforeEach(() => {
+    portfolioHistoryService.buildTransactionAwareReturnSeries.mockResolvedValue(NO_TRANSACTION_HISTORY);
+    portfolioHistoryService.getTransactionsVersion.mockResolvedValue("none");
 });
 
 afterEach(() => {
@@ -179,6 +192,81 @@ describe("getPortfolioAnalytics - populated portfolio", () => {
     });
 });
 
+describe("getPortfolioAnalytics - transaction-aware historical methodology", () => {
+    const setUpSingleHoldingPortfolio = () => {
+        Holding.find.mockReturnValue(chainableSelectLean([holdingRow("AAPL")]));
+        portfolioService.getPortfolio.mockResolvedValue({
+            holdings: [enrichedHolding("AAPL", 10000)],
+            summary: { totalCurrentValue: 10000, totalReturnPercent: 0, unpricedHoldings: [] },
+        });
+        Company.find.mockReturnValue(chainableSelectLean([{ ticker: "AAPL", sector: "Technology", industry: "Consumer Electronics", exchange: "NASDAQ" }]));
+        marketService.getHistoricalPrices.mockResolvedValue(buildBars(30, 0.3));
+        marketService.getCurrentMarketData.mockResolvedValue({ riskMetrics: { beta: 1.2 } });
+        companyService.resolveTicker.mockResolvedValue("SPY");
+        riskFreeRateProvider.getRiskFreeRate.mockResolvedValue(0.04);
+    };
+
+    /** A reconstructed series long enough to clear MIN_OBSERVATIONS_FOR_SERIES (10). */
+    const sufficientTransactionAwareSeries = Array.from({ length: 15 }, (_, i) => ({
+        date: new Date(2025, 0, i + 1).toISOString().slice(0, 10),
+        return: 0.001 * (i % 3 === 0 ? -1 : 1),
+    }));
+
+    it("uses the transaction-aware series and labels it as such when it has enough observations", async () => {
+        setUpSingleHoldingPortfolio();
+        portfolioHistoryService.buildTransactionAwareReturnSeries.mockResolvedValue({
+            available: true,
+            reason: null,
+            series: sufficientTransactionAwareSeries,
+            analyticsStartDate: "2025-01-01",
+            windowClipped: false,
+            excludedTransactionDays: 2,
+            excludedMissingPriceDays: 0,
+            excludedZeroValueDays: 0,
+            tickersInvolved: ["AAPL"],
+        });
+
+        const result = await portfolioAnalyticsService.getPortfolioAnalytics("user1", { window: "1y", benchmark: null });
+
+        expect(result.assumptions.historicalMethodology.type).toBe("transaction_aware");
+        expect(result.assumptions.historicalMethodology.analyticsStartDate).toBe("2025-01-01");
+        expect(result.assumptions.historicalMethodology.excludedTransactionDays).toBe(2);
+        expect(result.assumptions.historicalWeightMethodology).toMatch(/actual recorded transaction history/);
+        expect(result.performance.observedTradingDays).toBe(sufficientTransactionAwareSeries.length);
+    });
+
+    it("falls back to the legacy current-weights methodology when the transaction-aware series is too thin, and says why", async () => {
+        setUpSingleHoldingPortfolio();
+        portfolioHistoryService.buildTransactionAwareReturnSeries.mockResolvedValue({
+            available: true,
+            reason: null,
+            series: [{ date: "2025-01-02", return: 0.01 }], // only 1 observation - below MIN_OBSERVATIONS_FOR_SERIES
+            analyticsStartDate: "2025-01-01",
+            windowClipped: false,
+            excludedTransactionDays: 0,
+            excludedMissingPriceDays: 0,
+            excludedZeroValueDays: 0,
+            tickersInvolved: ["AAPL"],
+        });
+
+        const result = await portfolioAnalyticsService.getPortfolioAnalytics("user1", { window: "1y", benchmark: null });
+
+        expect(result.assumptions.historicalMethodology.type).toBe("current_weights_backward");
+        expect(result.assumptions.historicalMethodology.transactionHistoryAvailable).toBe(true);
+        expect(result.assumptions.historicalMethodology.reason).toMatch(/only produced 1 usable observation/);
+        expect(result.assumptions.historicalWeightMethodology).toMatch(/not a reconstruction/);
+    });
+
+    it("falls back to the legacy methodology when the user has no transaction ledger at all", async () => {
+        setUpSingleHoldingPortfolio();
+        // beforeEach's default (NO_TRANSACTION_HISTORY) already applies - asserting it explicitly here.
+        const result = await portfolioAnalyticsService.getPortfolioAnalytics("user1", { window: "1y", benchmark: null });
+
+        expect(result.assumptions.historicalMethodology.type).toBe("current_weights_backward");
+        expect(result.assumptions.historicalMethodology.transactionHistoryAvailable).toBe(false);
+    });
+});
+
 describe("getPortfolioAnalytics - caching", () => {
     const setUp = () => {
         Holding.find.mockReturnValue(chainableSelectLean([holdingRow("AAPL")]));
@@ -225,6 +313,18 @@ describe("getPortfolioAnalytics - caching", () => {
         });
 
         await portfolioAnalyticsService.getPortfolioAnalytics("userChanging", { window: "1y", benchmark: null });
+
+        expect(marketService.getHistoricalPrices.mock.calls.length).toBeGreaterThan(callsAfterFirst);
+    });
+
+    it("busts the cache when the user's transaction ledger changes, even with holdings unchanged", async () => {
+        setUp();
+        portfolioHistoryService.getTransactionsVersion.mockResolvedValue("v1");
+        await portfolioAnalyticsService.getPortfolioAnalytics("userTxnChanging", { window: "1y", benchmark: null });
+        const callsAfterFirst = marketService.getHistoricalPrices.mock.calls.length;
+
+        portfolioHistoryService.getTransactionsVersion.mockResolvedValue("v2"); // a transaction was added/edited/deleted
+        await portfolioAnalyticsService.getPortfolioAnalytics("userTxnChanging", { window: "1y", benchmark: null });
 
         expect(marketService.getHistoricalPrices.mock.calls.length).toBeGreaterThan(callsAfterFirst);
     });

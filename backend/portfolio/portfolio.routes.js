@@ -12,5 +12,7 @@ router.get("/", expensiveLimiter, portfolioController.getPortfolio);
 router.post("/holdings", portfolioController.addHolding);
 router.put("/holdings/:id", portfolioController.updateHolding);
 router.delete("/holdings/:id", portfolioController.deleteHolding);
+router.get("/holdings/history", portfolioController.getHoldingsHistory);
+router.get("/holdings", portfolioController.getHoldingsAt);
 
 module.exports = router;
