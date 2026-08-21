@@ -1,5 +1,7 @@
 # Sensitivity Analysis
 
+> This document covers DCF's WACC × terminal-growth sensitivity grid (Sprint 6/7). For the portfolio scenario engine's sensitivity feature (Sprint 16 — flexing one scenario rule's shock value across a small range), see `PortfolioScenarioSensitivity.md`.
+
 ## 1. Definition
 
 Sensitivity Analysis systematically re-runs a valuation across a range of values for its most consequential, most subjective assumptions, showing how much the output actually moves — turning "this DCF says $96/share" into "this DCF says somewhere between $70 and $157/share depending on two specific, named assumptions," which is a much more honest and useful statement.

@@ -8,6 +8,7 @@ import EmptyState from './ui/EmptyState'
 import SectionHeader from './ui/SectionHeader'
 import StatCard from './ui/StatCard'
 import PortfolioAnalyticsSection from './portfolio/PortfolioAnalyticsSection'
+import ScenarioSection from './portfolio/scenario/ScenarioSection'
 import TransactionsSection from './portfolio/TransactionsSection'
 import { fetchJson } from '../lib/api'
 import { formatPercent, formatPerShare } from '../lib/compsFormat'
@@ -404,6 +405,7 @@ function Portfolio() {
           </Card>
 
           <PortfolioAnalyticsSection holdingsCount={holdings.length} transactionsVersion={transactionsVersion} />
+          <ScenarioSection holdingsCount={holdings.length} />
         </>
       )}
 
