@@ -6,9 +6,11 @@ jest.mock("../portfolio.scenario.service", () => ({
     compareScenarios: jest.fn(),
     getPresets: jest.fn(),
 }));
+jest.mock("../portfolio.scenario.explanation.service", () => ({ explainScenario: jest.fn() }));
 jest.mock("../../identity/identity.service", () => ({ resolveUserIdByToken: jest.fn() }));
 
 const scenarioService = require("../portfolio.scenario.service");
+const explanationService = require("../portfolio.scenario.explanation.service");
 const identityService = require("../../identity/identity.service");
 const scenarioRoutes = require("../portfolio.scenario.routes");
 
@@ -132,5 +134,63 @@ describe("user isolation", () => {
 
         expect(scenarioService.runScenario).toHaveBeenNthCalledWith(1, "userA", expect.any(Object));
         expect(scenarioService.runScenario).toHaveBeenNthCalledWith(2, "userB", expect.any(Object));
+    });
+});
+
+const validExplainBody = () => ({
+    scenario: { name: "Bear Case", rules: [validRule] },
+    currentPortfolioValueUSD: 100000,
+    scenarioPortfolioValueUSD: 88000,
+    absoluteChangeUSD: -12000,
+    percentageChange: -12,
+    holdingImpact: [],
+    sectorImpact: [],
+});
+
+describe("POST /explain", () => {
+    beforeEach(() => {
+        identityService.resolveUserIdByToken.mockResolvedValue("userA");
+    });
+
+    it("rejects an unauthenticated request without calling the explanation service", async () => {
+        const response = await request(app).post("/api/portfolio/scenarios/explain").send(validExplainBody());
+        expect(response.status).toBe(401);
+        expect(explanationService.explainScenario).not.toHaveBeenCalled();
+    });
+
+    it("rejects a malformed scenario result before calling the explanation service", async () => {
+        const response = await request(app)
+            .post("/api/portfolio/scenarios/explain")
+            .set("Authorization", "Bearer token-a")
+            .send({ scenario: { name: "Bear Case", rules: [] } });
+
+        expect(response.status).toBe(400);
+        expect(explanationService.explainScenario).not.toHaveBeenCalled();
+    });
+
+    it("passes the validated, normalized scenario result to the explanation service and returns its prose", async () => {
+        explanationService.explainScenario.mockResolvedValue({ explanation: "The portfolio falls 12%.", generatedAt: "2026-08-21T00:00:00.000Z" });
+
+        const response = await request(app)
+            .post("/api/portfolio/scenarios/explain")
+            .set("Authorization", "Bearer token-a")
+            .send(validExplainBody());
+
+        expect(response.status).toBe(200);
+        expect(response.body.explanation).toBe("The portfolio falls 12%.");
+        expect(explanationService.explainScenario).toHaveBeenCalledWith(
+            expect.objectContaining({ scenario: expect.objectContaining({ name: "Bear Case" }) })
+        );
+    });
+
+    it("returns 502 when the explanation service throws", async () => {
+        explanationService.explainScenario.mockRejectedValue(new Error("The AI provider did not return a usable scenario explanation."));
+
+        const response = await request(app)
+            .post("/api/portfolio/scenarios/explain")
+            .set("Authorization", "Bearer token-a")
+            .send(validExplainBody());
+
+        expect(response.status).toBe(502);
     });
 });

@@ -54,6 +54,30 @@ const MARKET_SHOCK_METHODOLOGY_NOTE =
 const isFiniteNumber = (value) => typeof value === "number" && Number.isFinite(value);
 
 /**
+ * Weight-by-value share of holdings with a known sector/industry
+ * classification (Company.sector / Company.industry, Sprint 13) - mirrors
+ * calculatePortfolioBeta's coveragePercent shape so a reader can compare
+ * "how much of my portfolio has a known beta" against "how much has a
+ * known sector/industry" on equal footing. Unlike beta, a missing
+ * classification doesn't null out any scenario number (an unclassified
+ * holding simply doesn't match a SECTOR/INDUSTRY rule) - this is a
+ * transparency figure, not a gate on whether the scenario can run.
+ */
+const calculateClassificationCoverage = (holdings) => {
+    const totalValue = holdings.reduce((sum, h) => sum + (h.currentValueUSD || 0), 0);
+    if (totalValue === 0) {
+        return { sectorCoveragePercent: 0, industryCoveragePercent: 0 };
+    }
+
+    const coveredValue = (predicate) => holdings.filter(predicate).reduce((sum, h) => sum + (h.currentValueUSD || 0), 0);
+
+    return {
+        sectorCoveragePercent: Number(((coveredValue((h) => Boolean(h.sector)) / totalValue) * 100).toFixed(2)),
+        industryCoveragePercent: Number(((coveredValue((h) => Boolean(h.industry)) / totalValue) * 100).toFixed(2)),
+    };
+};
+
+/**
  * Fetches everything the resolver/calculator need about the current
  * portfolio, once. Mirrors portfolio.analytics.service.js's computeAnalytics
  * prologue (same positions/quotes/companies shape) so the two modules stay
@@ -140,17 +164,24 @@ const runScenarioAgainstContext = (context, { name, rules, sensitivity }) => {
     };
 };
 
-const buildAssumptions = (context, { name, rules, window }) => ({
-    scenarioName: name,
-    rules,
-    portfolioValueUSD: context.currentPortfolioValueUSD,
-    dataTimestamp: context.generatedAt,
-    unpricedHoldingsExcluded: context.unpricedTickers,
-    betaUsed: context.portfolioBeta?.beta ?? null,
-    betaCoveragePercent: context.portfolioBeta?.coveragePercent ?? null,
-    historicalContextWindow: window,
-    methodologyNotes: [PRECEDENCE_METHODOLOGY_NOTE, MARKET_SHOCK_METHODOLOGY_NOTE, HYPOTHETICAL_DISCLAIMER],
-});
+const buildAssumptions = (context, { name, rules, window }) => {
+    const { sectorCoveragePercent, industryCoveragePercent } = calculateClassificationCoverage(context.holdings);
+
+    return {
+        scenarioName: name,
+        rules,
+        portfolioValueUSD: context.currentPortfolioValueUSD,
+        dataTimestamp: context.generatedAt,
+        unpricedHoldingsExcluded: context.unpricedTickers,
+        betaUsed: context.portfolioBeta?.beta ?? null,
+        betaCoveragePercent: context.portfolioBeta?.coveragePercent ?? null,
+        sectorCoveragePercent,
+        industryCoveragePercent,
+        unmatchedRules: resolver.findUnmatchedRules(context.holdings, rules),
+        historicalContextWindow: window,
+        methodologyNotes: [PRECEDENCE_METHODOLOGY_NOTE, MARKET_SHOCK_METHODOLOGY_NOTE, HYPOTHETICAL_DISCLAIMER],
+    };
+};
 
 /**
  * Lifts historical context out of Sprint 14/15's existing analytics
@@ -194,6 +225,9 @@ const emptyScenarioResponse = (name, rules, window) => ({
         unpricedHoldingsExcluded: [],
         betaUsed: null,
         betaCoveragePercent: null,
+        sectorCoveragePercent: 0,
+        industryCoveragePercent: 0,
+        unmatchedRules: [],
         historicalContextWindow: window,
         methodologyNotes: [PRECEDENCE_METHODOLOGY_NOTE, MARKET_SHOCK_METHODOLOGY_NOTE, HYPOTHETICAL_DISCLAIMER],
     },
@@ -243,6 +277,7 @@ const getPresets = () => ({ presets: presets.listPresets() });
 module.exports = {
     loadScenarioContext,
     runScenarioAgainstContext,
+    calculateClassificationCoverage,
     runScenario,
     compareScenarios,
     getPresets,

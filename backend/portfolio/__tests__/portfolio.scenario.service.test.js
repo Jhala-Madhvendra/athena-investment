@@ -106,6 +106,99 @@ describe("runScenario - single asset shock", () => {
     });
 });
 
+describe("assumptions - sector/industry classification coverage", () => {
+    it("reports 100% coverage when every holding has a known sector and industry", async () => {
+        portfolioService.getPortfolio.mockResolvedValue({ holdings: [lot("AAPL", 200000)] });
+        mockCompanies([{ ticker: "AAPL", sector: "Technology", industry: "Consumer Electronics" }]);
+        mockQuote("AAPL", 1.2);
+        portfolioAnalyticsService.getPortfolioAnalytics.mockResolvedValue({ isEmpty: true });
+
+        const result = await scenarioService.runScenario("user1", {
+            name: "Bear",
+            rules: [{ targetType: "PORTFOLIO", target: null, shockPercent: -10 }],
+            benchmark: null,
+            window: "1y",
+            sensitivity: null,
+        });
+
+        expect(result.assumptions.sectorCoveragePercent).toBe(100);
+        expect(result.assumptions.industryCoveragePercent).toBe(100);
+    });
+
+    it("weights coverage by holding value, not by holding count", async () => {
+        // AAPL (classified, $80k) + an unclassified holding (MYST, $20k) -> 80% coverage, not 50%.
+        portfolioService.getPortfolio.mockResolvedValue({ holdings: [lot("AAPL", 80000), lot("MYST", 20000)] });
+        mockCompanies([{ ticker: "AAPL", sector: "Technology", industry: "Consumer Electronics" }]);
+        marketService.getCurrentMarketData.mockImplementation((ticker) =>
+            Promise.resolve(ticker === "AAPL" ? { riskMetrics: { beta: 1.2 } } : { riskMetrics: {} })
+        );
+        portfolioAnalyticsService.getPortfolioAnalytics.mockResolvedValue({ isEmpty: true });
+
+        const result = await scenarioService.runScenario("user1", {
+            name: "Bear",
+            rules: [{ targetType: "PORTFOLIO", target: null, shockPercent: -10 }],
+            benchmark: null,
+            window: "1y",
+            sensitivity: null,
+        });
+
+        expect(result.assumptions.sectorCoveragePercent).toBe(80);
+        expect(result.assumptions.industryCoveragePercent).toBe(80);
+    });
+
+    it("reports 0% coverage (not an error) for an empty portfolio", async () => {
+        portfolioService.getPortfolio.mockResolvedValue({ holdings: [] });
+
+        const result = await scenarioService.runScenario("user1", {
+            name: "Bear",
+            rules: [{ targetType: "PORTFOLIO", target: null, shockPercent: -10 }],
+            benchmark: null,
+            window: "1y",
+            sensitivity: null,
+        });
+
+        expect(result.assumptions.sectorCoveragePercent).toBe(0);
+        expect(result.assumptions.industryCoveragePercent).toBe(0);
+    });
+});
+
+describe("assumptions - unmatchedRules", () => {
+    it("flags a SECTOR/INDUSTRY rule whose target doesn't exactly match this portfolio's classification", async () => {
+        portfolioService.getPortfolio.mockResolvedValue({ holdings: [lot("AAPL", 200000)] });
+        mockCompanies([{ ticker: "AAPL", sector: "Technology", industry: "Consumer Electronics" }]);
+        mockQuote("AAPL", 1.2);
+        portfolioAnalyticsService.getPortfolioAnalytics.mockResolvedValue({ isEmpty: true });
+
+        const result = await scenarioService.runScenario("user1", {
+            name: "Custom Scenario",
+            rules: [{ targetType: "INDUSTRY", target: "Consumer Electric", shockPercent: -10 }],
+            benchmark: null,
+            window: "1y",
+            sensitivity: null,
+        });
+
+        expect(result.percentageChange).toBe(0);
+        expect(result.assumptions.unmatchedRules).toEqual([{ targetType: "INDUSTRY", target: "Consumer Electric", shockPercent: -10 }]);
+    });
+
+    it("reports an empty unmatchedRules array when every rule matches", async () => {
+        portfolioService.getPortfolio.mockResolvedValue({ holdings: [lot("AAPL", 200000)] });
+        mockCompanies([{ ticker: "AAPL", sector: "Technology", industry: "Consumer Electronics" }]);
+        mockQuote("AAPL", 1.2);
+        portfolioAnalyticsService.getPortfolioAnalytics.mockResolvedValue({ isEmpty: true });
+
+        const result = await scenarioService.runScenario("user1", {
+            name: "Custom Scenario",
+            rules: [{ targetType: "INDUSTRY", target: "Consumer Electronics", shockPercent: -10 }],
+            benchmark: null,
+            window: "1y",
+            sensitivity: null,
+        });
+
+        expect(result.assumptions.unmatchedRules).toEqual([]);
+    });
+});
+
 describe("runScenario - market shock uses per-holding beta, portfolio beta surfaced in assumptions", () => {
     it("scales the market shock by each holding's beta and reports portfolio beta in assumptions", async () => {
         portfolioService.getPortfolio.mockResolvedValue({ holdings: [lot("AAPL", 100000)] });

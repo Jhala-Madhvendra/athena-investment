@@ -10,5 +10,6 @@ router.use(requireIdentity);
 router.get("/presets", scenarioController.getPresets);
 router.post("/run", expensiveLimiter, scenarioController.runScenario);
 router.post("/compare", expensiveLimiter, scenarioController.compareScenarios);
+router.post("/explain", expensiveLimiter, scenarioController.explainScenario);
 
 module.exports = router;

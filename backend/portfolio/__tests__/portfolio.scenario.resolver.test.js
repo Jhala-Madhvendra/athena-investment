@@ -1,4 +1,4 @@
-const { resolveHoldingRule, resolveScenario, ruleMatchesHolding, PRECEDENCE_RANK } = require("../portfolio.scenario.resolver");
+const { resolveHoldingRule, resolveScenario, ruleMatchesHolding, findUnmatchedRules, PRECEDENCE_RANK } = require("../portfolio.scenario.resolver");
 
 const holding = (overrides = {}) => ({
     ticker: "AAPL",
@@ -136,5 +136,48 @@ describe("resolveScenario - portfolio-wide fallback", () => {
         expect(result.unaffected).toBe(true);
         expect(result.appliedRule).toBeNull();
         expect(result.effectiveShockPercent).toBeNull();
+    });
+});
+
+describe("findUnmatchedRules", () => {
+    it("flags a SECTOR/INDUSTRY rule whose target string doesn't exactly match any holding (e.g. a typo)", () => {
+        const holdings = [holding({ ticker: "AAPL", sector: "Technology", industry: "Consumer Electronics" })];
+        const rules = [{ targetType: "INDUSTRY", target: "Consumer Electric", shockPercent: -10 }];
+
+        expect(findUnmatchedRules(holdings, rules)).toEqual(rules);
+    });
+
+    it("does not flag a rule that matched at least one holding, even if it lost precedence to a more specific rule", () => {
+        const holdings = [holding({ ticker: "AAPL", sector: "Technology", industry: "Consumer Electronics" })];
+        const rules = [
+            { targetType: "ASSET", target: "AAPL", shockPercent: -30 },
+            { targetType: "SECTOR", target: "Technology", shockPercent: -10 },
+        ];
+
+        expect(findUnmatchedRules(holdings, rules)).toEqual([]);
+    });
+
+    it("never flags MARKET or PORTFOLIO rules as long as at least one holding exists", () => {
+        const holdings = [holding()];
+        const rules = [
+            { targetType: "MARKET", target: null, shockPercent: -20 },
+            { targetType: "PORTFOLIO", target: null, shockPercent: -10 },
+        ];
+
+        expect(findUnmatchedRules(holdings, rules)).toEqual([]);
+    });
+
+    it("flags an ASSET rule for a ticker not held in the portfolio", () => {
+        const holdings = [holding({ ticker: "AAPL" })];
+        const rules = [{ targetType: "ASSET", target: "MSFT", shockPercent: -15 }];
+
+        expect(findUnmatchedRules(holdings, rules)).toEqual(rules);
+    });
+
+    it("returns an empty array when every rule matches at least one holding", () => {
+        const holdings = [holding({ ticker: "AAPL", sector: "Technology" })];
+        const rules = [{ targetType: "SECTOR", target: "Technology", shockPercent: -10 }];
+
+        expect(findUnmatchedRules(holdings, rules)).toEqual([]);
     });
 });

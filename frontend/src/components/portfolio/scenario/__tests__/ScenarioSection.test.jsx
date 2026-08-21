@@ -51,6 +51,7 @@ const runResultFixture = (overrides = {}) => ({
     unpricedHoldingsExcluded: [],
     betaUsed: null,
     betaCoveragePercent: null,
+    unmatchedRules: [],
     methodologyNotes: ['This is a hypothetical scenario, not a forecast or prediction.'],
   },
   ...overrides,
@@ -156,6 +157,34 @@ describe('ScenarioSection - adding a rule and running a scenario', () => {
     fireEvent.click(screen.getByRole('button', { name: /run scenario/i }))
 
     expect(await screen.findByText(/couldn't run scenario/i)).toBeInTheDocument()
+  })
+})
+
+describe('ScenarioSection - unmatched rule warning', () => {
+  it('shows a warning banner when a SECTOR/INDUSTRY rule matched no holdings (e.g. a typo)', async () => {
+    const fixture = runResultFixture()
+    fixture.assumptions.unmatchedRules = [{ targetType: 'INDUSTRY', target: 'Consumer Electric', shockPercent: -10 }]
+    mockScenarioApi({ run: fixture })
+    render(<ScenarioSection holdingsCount={1} />)
+
+    await waitFor(() => expect(screen.getByText('Bear Case')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Bear Case'))
+    fireEvent.click(screen.getByRole('button', { name: /run scenario/i }))
+
+    expect(await screen.findByText(/this rule matched no holdings/i)).toBeInTheDocument()
+    expect(screen.getByText(/industry "consumer electric"/i)).toBeInTheDocument()
+  })
+
+  it('shows no warning banner when every rule matched', async () => {
+    mockScenarioApi({ run: runResultFixture() })
+    render(<ScenarioSection holdingsCount={1} />)
+
+    await waitFor(() => expect(screen.getByText('Bear Case')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('Bear Case'))
+    fireEvent.click(screen.getByRole('button', { name: /run scenario/i }))
+
+    await waitFor(() => expect(screen.getByText(/hypothetical - not a forecast/i)).toBeInTheDocument())
+    expect(screen.queryByText(/matched no holdings/i)).not.toBeInTheDocument()
   })
 })
 

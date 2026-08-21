@@ -30,6 +30,7 @@ function HoldingImpactTable({ holdingImpact }) {
           <thead>
             <tr className="border-b border-border text-xs font-semibold tracking-wide text-ink-muted uppercase">
               <th className="px-5 py-3">Holding</th>
+              <th className="px-3 py-3">Sector / Industry</th>
               <th className="px-3 py-3">Applied Rule</th>
               <th className="px-3 py-3">Shock</th>
               <th className="px-3 py-3">Current Value</th>
@@ -47,6 +48,10 @@ function HoldingImpactTable({ holdingImpact }) {
               return (
                 <tr key={holding.ticker} className="transition-colors hover:bg-surface-sunken/50">
                   <td className="px-5 py-3 font-semibold text-ink">{holding.ticker}</td>
+                  <td className="px-3 py-3 text-ink-secondary">
+                    {holding.sector || '—'}
+                    {holding.industry ? <span className="text-ink-muted"> / {holding.industry}</span> : null}
+                  </td>
                   <td className="px-3 py-3 text-ink-secondary">{ruleDescription(holding.appliedRule)}</td>
                   <td className="px-3 py-3 tabular-nums" style={{ color: holding.unaffected ? undefined : tier.hex }}>
                     {holding.unaffected ? '—' : formatPercent(holding.effectiveShockPercent)}

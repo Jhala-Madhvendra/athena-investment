@@ -1,8 +1,10 @@
+import { TriangleAlert } from 'lucide-react'
 import Card from '../../ui/Card'
 import StatCard from '../../ui/StatCard'
 import HoldingImpactTable from './HoldingImpactTable'
 import SectorImpactTable from './SectorImpactTable'
 import SensitivityPanel from './SensitivityPanel'
+import ScenarioExplanationPanel from './ScenarioExplanationPanel'
 import { formatMoney, formatPercent } from '../../../lib/compsFormat'
 import { getSentimentTier } from '../../../lib/scoreTokens'
 
@@ -10,6 +12,8 @@ const ruleSummary = (rule) => {
   const target = rule.targetType === 'MARKET' ? 'Market' : rule.targetType === 'PORTFOLIO' ? 'Entire Portfolio' : rule.target
   return `${target}: ${rule.shockPercent >= 0 ? '+' : ''}${rule.shockPercent}%`
 }
+
+const targetTypeLabel = { ASSET: 'Asset', INDUSTRY: 'Industry', SECTOR: 'Sector' }
 
 /**
  * Everything the sprint brief's "Result View" asks for: current vs
@@ -49,6 +53,30 @@ function ScenarioResult({ result, onAddToComparison, onRunSensitivity, sensitivi
           <StatCard label="Percentage Change" value={formatPercent(result.percentageChange)} hex={tier.hex} />
         </div>
       </Card>
+
+      {assumptions?.unmatchedRules?.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-ink-secondary">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+          <div>
+            <p>
+              <span className="font-semibold text-ink">
+                {assumptions.unmatchedRules.length === 1 ? 'This rule matched no holdings: ' : 'These rules matched no holdings: '}
+              </span>
+              {assumptions.unmatchedRules
+                .map((rule) => `${targetTypeLabel[rule.targetType] || rule.targetType} "${rule.target}"`)
+                .join(', ')}
+              .
+            </p>
+            <p className="mt-1 text-xs text-ink-muted">
+              Athena matches sector/industry/ticker rules with an exact match against each holding's real classification -
+              check the spelling against the values shown in Holding Impact below. The 0% result above reflects no rule
+              applying, not a modeled outcome of the shock.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <ScenarioExplanationPanel key={`${result.scenario?.name}-${assumptions?.dataTimestamp}`} result={result} />
 
       <HoldingImpactTable holdingImpact={result.holdingImpact} />
       <SectorImpactTable sectorImpact={result.sectorImpact} />
@@ -104,6 +132,17 @@ function ScenarioResult({ result, onAddToComparison, onRunSensitivity, sensitivi
                   {assumptions.betaUsed.toFixed(2)}
                   {typeof assumptions.betaCoveragePercent === 'number' && (
                     <span className="ml-1 text-xs text-ink-muted">({assumptions.betaCoveragePercent.toFixed(0)}% coverage)</span>
+                  )}
+                </dd>
+              </div>
+            )}
+            {typeof assumptions.sectorCoveragePercent === 'number' && (
+              <div>
+                <dt className="text-xs font-medium text-ink-muted">Sector / Industry Classification Coverage</dt>
+                <dd className="mt-0.5 text-sm text-ink">
+                  Sector known for {assumptions.sectorCoveragePercent.toFixed(0)}% of portfolio value
+                  {typeof assumptions.industryCoveragePercent === 'number' && (
+                    <span className="text-ink-muted"> · Industry known for {assumptions.industryCoveragePercent.toFixed(0)}%</span>
                   )}
                 </dd>
               </div>

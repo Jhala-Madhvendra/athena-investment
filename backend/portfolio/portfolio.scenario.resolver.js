@@ -150,6 +150,25 @@ const resolveScenario = (holdings, rules) =>
         };
     });
 
+/**
+ * Rules that matched ZERO holdings anywhere in the portfolio - distinct
+ * from `overriddenRules` (a rule that matched at least one holding but
+ * lost to a more specific one). This is the "did I typo the sector/
+ * industry name" signal: matching is an exact, case-sensitive string
+ * comparison against Yahoo-sourced classification (see module header), so
+ * "Consumer Electric" against a holding actually classified "Consumer
+ * Electronics" produces a scenario that runs cleanly and reports 0%
+ * impact - correct given the input, but easy to mistake for a broken
+ * engine rather than a mismatched label. MARKET/PORTFOLIO rules can never
+ * appear here (ruleMatchesHolding always returns true for them, so they
+ * match every holding as long as any holding exists).
+ * @param {object[]} holdings
+ * @param {object[]} rules
+ * @returns {object[]} the subset of `rules` that matched no holding
+ */
+const findUnmatchedRules = (holdings, rules) =>
+    (rules || []).filter((rule) => !(holdings || []).some((holding) => ruleMatchesHolding(rule, holding)));
+
 module.exports = {
     TARGET_TYPES,
     PRECEDENCE_RANK,
@@ -157,4 +176,5 @@ module.exports = {
     effectiveShockForRule,
     resolveHoldingRule,
     resolveScenario,
+    findUnmatchedRules,
 };
