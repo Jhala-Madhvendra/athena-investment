@@ -16,7 +16,7 @@ import { formatValue } from '../lib/statementTabs';
 
 const TREND_ICON = { '↑': TrendingUp, '↓': TrendingDown, '→': Minus, '⚠': AlertTriangle, '?': HelpCircle };
 
-const TONE_HEX = { positive: '#0ca30c', negative: '#d03b3b', neutral: '#898781' };
+const TONE_HEX = { positive: '#0ca30c', negative: '#d03b3b', neutral: '#898781', warning: '#fab219' };
 
 const SUBTABS = [
   { key: 'overview', label: 'Overview' },
@@ -52,12 +52,15 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
    * Resolve a growth metric to display text + color class.
    * When CAGR isn't a real percentage (loss-to-profit or similar sign change),
    * falls back to the sign-change description instead of a bare "N/A".
+   * A '⚠' (volatile) or '→' (flat) trend direction overrides the sign-based
+   * color - a volatile or stable metric shouldn't read as a confident "good".
    * @param {number|string|null} value - CAGR value (decimal), 'N/A', 'infinite', or null
-   * @param {object|null} signChange - {label, positive} from the trends object
+   * @param {object|null} trend - {direction, signChange} from the trends object
    * @param {boolean} invert - true when a falling value is the good outcome (e.g. debt)
    * @returns {{text: string, className: string}}
    */
-  const renderGrowthValue = (value, signChange, invert = false) => {
+  const renderGrowthValue = (value, trend, invert = false) => {
+    const signChange = trend?.signChange;
     if (value === null || value === undefined || value === 'N/A' || value === 'infinite') {
       if (signChange) {
         const tone = signChange.positive === true ? 'positive' : signChange.positive === false ? 'negative' : 'neutral';
@@ -65,8 +68,15 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
       }
       return { text: 'N/A', className: 'neutral' };
     }
-    const isGood = invert ? value <= 0 : value >= 0;
-    return { text: formatPercent(value), className: isGood ? 'positive' : 'negative' };
+    let tone;
+    if (trend?.direction === '⚠') {
+      tone = 'warning';
+    } else if (trend?.direction === '→') {
+      tone = 'neutral';
+    } else {
+      tone = (invert ? value <= 0 : value >= 0) ? 'positive' : 'negative';
+    }
+    return { text: formatPercent(value), className: tone };
   };
 
   /** Adapt a renderGrowthValue() result into StatCard props */
@@ -204,13 +214,13 @@ const BusinessAnalysis = ({ years = 5, weights = 'balanced' }) => {
   const { healthScore, insights, growth, trends, period } = analysis;
   const scoreTier = getScoreTier(healthScore.overall);
 
-  const revenueDisplay = renderGrowthValue(growth.revenueCAGR, trends.revenue?.signChange);
-  const netIncomeDisplay = renderGrowthValue(growth.netIncomeCAGR, trends.netIncome?.signChange);
-  const operatingIncomeDisplay = renderGrowthValue(growth.operatingIncomeCAGR, trends.operatingIncome?.signChange);
-  const fcfDisplay = renderGrowthValue(growth.freeCashFlowCAGR, trends.cashFlow?.signChange);
-  const debtGrowthDisplay = renderGrowthValue(growth.debtGrowth, trends.debtGrowth?.signChange, true);
-  const equityGrowthDisplay = renderGrowthValue(growth.equityGrowth, trends.equityGrowth?.signChange);
-  const assetGrowthDisplay = renderGrowthValue(growth.assetGrowth, trends.assetGrowth?.signChange);
+  const revenueDisplay = renderGrowthValue(growth.revenueCAGR, trends.revenue);
+  const netIncomeDisplay = renderGrowthValue(growth.netIncomeCAGR, trends.netIncome);
+  const operatingIncomeDisplay = renderGrowthValue(growth.operatingIncomeCAGR, trends.operatingIncome);
+  const fcfDisplay = renderGrowthValue(growth.freeCashFlowCAGR, trends.cashFlow);
+  const debtGrowthDisplay = renderGrowthValue(growth.debtGrowth, trends.debtGrowth, true);
+  const equityGrowthDisplay = renderGrowthValue(growth.equityGrowth, trends.equityGrowth);
+  const assetGrowthDisplay = renderGrowthValue(growth.assetGrowth, trends.assetGrowth);
 
   const trendItems = [
     { label: 'Operating Margin', trend: trends.operatingMargin },
