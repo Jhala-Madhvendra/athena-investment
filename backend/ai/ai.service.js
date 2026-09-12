@@ -22,6 +22,7 @@ const promptBuilder = require("./ai.promptBuilder");
 const responseParser = require("./ai.responseParser");
 const validator = require("./ai.validator");
 const llmProvider = require("./providers/llmProvider.registry");
+const aiQuotaService = require("./aiQuota.service");
 const env = require("../config/env");
 const logger = require("../utils/logger");
 
@@ -122,17 +123,28 @@ const generateAndPersistReport = async (ticker, options) => {
 
 /**
  * @param {string} ticker
- * @param {{regenerate?: boolean, preTaxCostOfDebt?: number}} [options]
+ * @param {{regenerate?: boolean, preTaxCostOfDebt?: number, userId?: string}} [options]
  * @returns {Promise<import("mongoose").Document>} the persisted AiResearchReport
  */
 const getOrGenerateReport = async (ticker, options = {}) => {
     const normalizedTicker = normalizeTicker(ticker);
-    const { regenerate = false, preTaxCostOfDebt } = options;
+    const { regenerate = false, preTaxCostOfDebt, userId } = options;
 
     if (!regenerate) {
         const existing = await AiResearchReport.findOne({ ticker: normalizedTicker, contextVersion: env.aiPromptVersion });
         if (existing) {
             return existing;
+        }
+    }
+
+    // Only reached on a real LLM-invoking attempt (regenerate:true, or no
+    // cached report) - a cache hit above never touches quota. userId is
+    // only absent when this is called without a request context (e.g.
+    // directly from a test); the controller always supplies one.
+    if (userId) {
+        const quota = await aiQuotaService.consumeIfAvailable(userId);
+        if (!quota.allowed) {
+            throw new aiQuotaService.QuotaExceededError(quota.limit);
         }
     }
 

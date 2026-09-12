@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import { fetchJson } from '../../../lib/api';
 import { notifyAlertsChanged } from '../../../lib/alertsBadge';
+import { AuthProvider } from '../../../context/AuthContext';
 
 vi.mock('../../../lib/api', () => ({ fetchJson: vi.fn() }));
 
@@ -14,7 +15,9 @@ afterEach(() => {
 const renderSidebar = () =>
   render(
     <MemoryRouter initialEntries={['/financials/AAPL/overview']}>
-      <Sidebar />
+      <AuthProvider>
+        <Sidebar />
+      </AuthProvider>
     </MemoryRouter>
   );
 

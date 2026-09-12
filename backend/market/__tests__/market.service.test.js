@@ -100,7 +100,7 @@ describe("getHistoricalPrices", () => {
 
         const bars = await marketService.getHistoricalPrices("NEWTICKER", "1m");
 
-        expect(marketDataProvider.getHistoricalPrices).toHaveBeenCalledWith("NEWTICKER", "5y");
+        expect(marketDataProvider.getHistoricalPrices).toHaveBeenCalledWith("NEWTICKER", "10y");
         expect(MarketHistory.bulkWrite).toHaveBeenCalledTimes(1);
         expect(MarketHistory.bulkWrite.mock.calls[0][0]).toHaveLength(1);
         expect(bars).toEqual([{ date: TODAY, close: 42 }]);
@@ -126,6 +126,19 @@ describe("getHistoricalPrices", () => {
         expect(MarketHistory.bulkWrite.mock.calls[0][0]).toHaveLength(1);
     });
 
+    it("accepts the 10y period and requires a start date roughly 10 years back", async () => {
+        Company.findOne.mockResolvedValue({ _id: "company1" });
+        const cachedRecords = [{ date: daysAgo(365 * 11) }, { date: TODAY }];
+        MarketHistory.find
+            .mockReturnValueOnce(chainableResult(cachedRecords))
+            .mockReturnValueOnce(chainableResult([{ date: TODAY, close: 42 }]));
+
+        const bars = await marketService.getHistoricalPrices("TENYEAR", "10y");
+
+        expect(marketDataProvider.getHistoricalPrices).not.toHaveBeenCalled(); // 11y-old anchor already covers a 10y request
+        expect(bars).toEqual([{ date: TODAY, close: 42 }]);
+    });
+
     it("skips the provider refresh when cached coverage already spans the period and is fresh", async () => {
         Company.findOne.mockResolvedValue({ _id: "company1" });
         const cachedRecords = [{ date: daysAgo(365 * 6) }, { date: TODAY }];
@@ -141,7 +154,7 @@ describe("getHistoricalPrices", () => {
 
 describe("getPerformance", () => {
     it("rejects an unsupported period", async () => {
-        await expect(marketService.getPerformance("AAPL", "10y")).rejects.toThrow(
+        await expect(marketService.getPerformance("AAPL", "20y")).rejects.toThrow(
             marketService.InvalidPeriodError
         );
     });
@@ -149,8 +162,10 @@ describe("getPerformance", () => {
     const setupSufficientHistory = (bars) => {
         Company.findOne.mockResolvedValue({ _id: "company1" });
         // Coverage check sees the full history (old anchor bar + real bars) -> sufficient, no refresh.
+        // Anchor is older than MAX_PERIOD (10y) so getPerformance's internal
+        // full-history fetch (always MAX_PERIOD) never triggers a refresh.
         MarketHistory.find
-            .mockReturnValueOnce(chainableResult([{ date: daysAgo(365 * 6) }, ...bars]))
+            .mockReturnValueOnce(chainableResult([{ date: daysAgo(365 * 11) }, ...bars]))
             .mockReturnValueOnce(chainableResult(bars));
     };
 
@@ -209,5 +224,6 @@ describe("getPerformance", () => {
         expect(performance["6M"]).toBe(10);
         expect(performance["1Y"]).toBe(10);
         expect(performance["5Y"]).toBe(10);
+        expect(performance["10Y"]).toBe(10);
     });
 });

@@ -14,6 +14,7 @@ function CompanyHeader({ company, quote, quoteLoading = false, quoteError = '' }
   const changePercent = change !== null && previousClose ? (change / previousClose) * 100 : null;
   const isPositive = change !== null && change >= 0;
   const currency = quote?.currency || company?.currency || '';
+  const asOf = quote?.asOf ? new Date(quote.asOf).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : null;
 
   const subtitle = [company?.exchange, company?.sector, company?.industry, company?.country]
     .filter(Boolean)
@@ -46,6 +47,7 @@ function CompanyHeader({ company, quote, quoteLoading = false, quoteError = '' }
                 {changePercent.toFixed(2)}%)
               </p>
             )}
+            {asOf && <p className="mt-0.5 text-xs text-ink-muted">As of {asOf} · quotes may be delayed</p>}
           </>
         )}
         <p className="mt-1 text-xs text-ink-muted">

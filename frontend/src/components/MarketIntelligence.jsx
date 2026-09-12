@@ -15,6 +15,7 @@ const CHART_PERIODS = [
   { key: '6m', label: '6M' },
   { key: '1y', label: '1Y' },
   { key: '5y', label: '5Y' },
+  { key: '10y', label: '10Y' },
 ];
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';

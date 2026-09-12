@@ -67,4 +67,68 @@ export const fetchJson = async (path, options = {}, signal) => {
   return data
 }
 
+const parseJsonResponse = async (response) => {
+  const data = await response.json()
+
+  if (!response.ok) {
+    const error = new Error(data.message || 'Request failed.')
+    error.errors = data.errors
+    error.status = response.status
+    throw error
+  }
+
+  return data
+}
+
+/**
+ * Creates or upgrades an account. Sends the currently-stored token (if any)
+ * as `Authorization` so the backend can upgrade an anonymous session in
+ * place instead of starting from nothing - see identity.service.js's
+ * signup(). If the response carries a fresh `token` (a brand-new account,
+ * no prior session to upgrade), it's stored; otherwise the existing stored
+ * token is now attached to a real account and needs no change.
+ */
+export const signup = async (email, password) => {
+  const existingToken = getStoredToken()
+
+  const response = await fetch(`${apiBaseUrl}/api/identity/signup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(existingToken ? { Authorization: `Bearer ${existingToken}` } : {}),
+    },
+    body: JSON.stringify({ email, password }),
+  })
+  const data = await parseJsonResponse(response)
+
+  if (data.token) setStoredToken(data.token)
+  return data
+}
+
+/** Always stores the returned token, replacing whatever was there - matches the backend's single-active-session-per-account model (logging in retires any other device's token). */
+export const login = async (email, password) => {
+  const response = await fetch(`${apiBaseUrl}/api/identity/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  const data = await parseJsonResponse(response)
+
+  setStoredToken(data.token)
+  return data
+}
+
+/** Invalidates the current token server-side, then clears local storage and the in-flight-mint dedup cache so the very next fetchJson call transparently mints a fresh anonymous identity. */
+export const logout = async () => {
+  await fetchJson('/api/identity/logout', { method: 'POST' })
+  localStorage.removeItem(TOKEN_STORAGE_KEY)
+  pendingIdentity = null
+}
+
+export const fetchCurrentIdentity = () => fetchJson('/api/identity/me')
+
+/** Partial update - only send the fields that changed, so e.g. toggling emailEnabled never clobbers an already-saved Slack webhook URL. */
+export const updateNotificationPreferences = (updates) =>
+  fetchJson('/api/identity/notification-preferences', { method: 'PUT', body: JSON.stringify(updates) })
+
 export { apiBaseUrl }

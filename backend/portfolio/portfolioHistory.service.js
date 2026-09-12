@@ -35,11 +35,17 @@ const reconstructionCalculator = require("./holdingsReconstruction.calculator");
 
 const NO_TRANSACTIONS_REASON = "No transaction history recorded for this user - cannot reconstruct historical holdings.";
 
-/** Earliest date Athena can vouch for reconstructed holdings - before this, no ledger exists, so no historical position is known (never assumed to equal today's holdings). */
-const getReconstructionStatus = async (userId) => {
+/**
+ * Earliest date Athena can vouch for reconstructed holdings - before this,
+ * no ledger exists, so no historical position is known (never assumed to
+ * equal today's holdings).
+ * @param {string|null} [portfolioId] - scopes to one account when given; aggregates across every account when omitted, same default as portfolio.service.js's getPortfolio.
+ */
+const getReconstructionStatus = async (userId, portfolioId = null) => {
+    const filter = portfolioId ? { userId, portfolioId } : { userId };
     const [earliest, transactionCount] = await Promise.all([
-        Transaction.findOne({ userId }).sort({ transactionDate: 1, createdAt: 1 }).lean(),
-        Transaction.countDocuments({ userId }),
+        Transaction.findOne(filter).sort({ transactionDate: 1, createdAt: 1 }).lean(),
+        Transaction.countDocuments(filter),
     ]);
 
     if (!earliest) {
@@ -54,15 +60,16 @@ const getReconstructionStatus = async (userId) => {
 };
 
 /** Reconstructed holdings as of a given date (inclusive). Empty holdings + hasTransactionHistory:false means "no ledger," not "confirmed empty portfolio." */
-const getHoldingsAt = async (userId, dateString) => {
-    const status = await getReconstructionStatus(userId);
+const getHoldingsAt = async (userId, dateString, portfolioId = null) => {
+    const status = await getReconstructionStatus(userId, portfolioId);
     const asOfDateKey = reconstructionCalculator.toDateKey(dateString);
 
     if (!status.hasTransactions) {
         return { asOfDate: asOfDateKey, holdings: {}, hasTransactionHistory: false, analyticsStartDate: null, beforeAnalyticsStartDate: null };
     }
 
-    const transactions = await Transaction.find({ userId }).lean();
+    const filter = portfolioId ? { userId, portfolioId } : { userId };
+    const transactions = await Transaction.find(filter).lean();
     const holdings = reconstructionCalculator.getHoldingsAt(transactions, dateString);
 
     return {
@@ -74,13 +81,14 @@ const getHoldingsAt = async (userId, dateString) => {
     };
 };
 
-const getHoldingsTimeline = async (userId) => {
-    const status = await getReconstructionStatus(userId);
+const getHoldingsTimeline = async (userId, portfolioId = null) => {
+    const status = await getReconstructionStatus(userId, portfolioId);
     if (!status.hasTransactions) {
         return { hasTransactionHistory: false, analyticsStartDate: null, timeline: [] };
     }
 
-    const transactions = await Transaction.find({ userId }).lean();
+    const filter = portfolioId ? { userId, portfolioId } : { userId };
+    const transactions = await Transaction.find(filter).lean();
     return {
         hasTransactionHistory: true,
         analyticsStartDate: status.analyticsStartDate,

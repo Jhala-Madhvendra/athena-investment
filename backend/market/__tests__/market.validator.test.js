@@ -5,7 +5,7 @@ describe("validatePeriod", () => {
         expect(validatePeriod(undefined)).toEqual({ isValid: true, period: DEFAULT_PERIOD, error: null });
     });
 
-    it.each(["1m", "3m", "6m", "1y", "5y"])("accepts the supported period %s", (period) => {
+    it.each(["1m", "3m", "6m", "1y", "5y", "10y"])("accepts the supported period %s", (period) => {
         expect(validatePeriod(period)).toEqual({ isValid: true, period, error: null });
     });
 

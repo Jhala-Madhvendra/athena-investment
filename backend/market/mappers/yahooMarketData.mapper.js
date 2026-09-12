@@ -6,6 +6,12 @@ const getValue = (value) => {
     return typeof value === "number" ? value : null;
 };
 
+/** Yahoo's regularMarketTime is raw epoch seconds when present - converts to ISO, falling back to fetch-time only when Yahoo didn't supply one. */
+const getMarketTime = (rawMarketTime) => {
+    const epochSeconds = getValue(rawMarketTime);
+    return typeof epochSeconds === "number" ? new Date(epochSeconds * 1000).toISOString() : new Date().toISOString();
+};
+
 const mapYahooQuote = (response, requestedTicker) => {
     const quoteSummary = response?.quoteSummary?.result?.[0];
 
@@ -46,7 +52,13 @@ const mapYahooQuote = (response, requestedTicker) => {
         riskMetrics: {
             beta: getValue(keyStatistics.beta),
         },
-        asOf: new Date().toISOString(),
+        // Prefers Yahoo's own reported quote timestamp (regularMarketTime,
+        // raw epoch seconds) over "whenever Athena's mapper happened to run" -
+        // the two are usually close given the short quote cache TTL, but
+        // asOf should describe the market data's own freshness, not
+        // Athena's fetch time, so staleness disclosure in the UI stays
+        // honest even if a request is ever delayed after the actual fetch.
+        asOf: getMarketTime(price.regularMarketTime),
     };
 };
 

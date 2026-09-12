@@ -52,6 +52,14 @@ const env = {
     // so any report persisted under v1 is treated as stale and regenerated
     // once rather than served in the old shape.
     aiPromptVersion: process.env.AI_PROMPT_VERSION || "v2",
+    // Earnings AI Summary's own cache-key version, kept separate from
+    // aiPromptVersion above so bumping one feature's prompt/schema doesn't
+    // invalidate the other's cached output.
+    earningsAiPromptVersion: process.env.EARNINGS_AI_PROMPT_VERSION || "v1",
+    // Shared monthly free-generation pool across every LLM-cost-bearing
+    // feature (AI Research Reports, Earnings AI Summaries) - see
+    // backend/ai/aiQuota.service.js.
+    aiReportMonthlyQuota: Number(process.env.AI_REPORT_MONTHLY_QUOTA) || 5,
     // News & Event Intelligence (Sprint 10) - "yahoo" (default, unofficial,
     // no key), "marketaux" (dedicated news API, needs MARKETAUX_API_KEY),
     // or "mock" (development-only fixtures, never real news).
@@ -74,6 +82,26 @@ const env = {
     // app (iterates every tracked ticker across five rule categories), so
     // it gets its own, tighter rate-limit cap - see middleware/rateLimit.js.
     alertMonitorRateLimitMax: Number(process.env.ALERT_MONITOR_RATE_LIMIT_MAX) || 10,
+    // Login/signup are the first meaningful brute-force target this app has
+    // ever had (no password existed before the real-login/signup upgrade to
+    // the anonymous identity system) - stricter than expensiveLimiter, keyed
+    // by IP like every other limiter here (see middleware/rateLimit.js).
+    authRateLimitMax: Number(process.env.AUTH_RATE_LIMIT_MAX) || 15,
+    // AI Monitoring & Alerts - scheduler cadences (node-cron expressions).
+    // Cron jobs themselves are only started outside test (see
+    // backend/jobs/scheduler.js), so these defaults never fire during Jest.
+    alertMonitoringCron: process.env.ALERT_MONITORING_CRON || "0 */6 * * *",
+    scenarioWatchCron: process.env.SCENARIO_WATCH_CRON || "0 */6 * * *",
+    digestCron: process.env.DIGEST_CRON || "0 13 * * 1",
+    // Push notification channels (backend/notifications/) - each is null by
+    // default and simply unusable until configured; no channel crashes
+    // startup for being unconfigured, see notification.service.js.
+    smtpHost: process.env.SMTP_HOST || null,
+    smtpPort: Number(process.env.SMTP_PORT) || 587,
+    smtpUser: process.env.SMTP_USER || null,
+    smtpPass: process.env.SMTP_PASS || null,
+    smtpFrom: process.env.SMTP_FROM || null,
+    telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || null,
 };
 
 if (env.isProduction && env.frontendOrigins.length === 0) {

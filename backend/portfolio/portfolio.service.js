@@ -12,6 +12,8 @@ const marketService = require("../market/market.service");
 const fxRateProvider = require("../market/providers/fxRate.provider");
 const calculator = require("./portfolio.calculator");
 const { validateHoldingInput } = require("./portfolio.validator");
+const portfolioAccountService = require("./portfolioAccount.service");
+const dividendService = require("./dividend.service");
 
 class HoldingNotFoundError extends Error {
     constructor() {
@@ -30,13 +32,15 @@ class HoldingValidationError extends Error {
     }
 }
 
-const addHolding = async (userId, { ticker, shares, averagePurchasePrice, purchaseDate }) => {
+const addHolding = async (userId, { ticker, shares, averagePurchasePrice, purchaseDate, portfolioId }) => {
     const validation = validateHoldingInput({ shares, averagePurchasePrice, purchaseDate });
     if (!validation.isValid) {
         throw new HoldingValidationError(validation.errors);
     }
 
-    return Holding.create({ userId, ticker, ...validation.normalized });
+    const resolvedPortfolioId = await portfolioAccountService.resolveWritablePortfolioId(userId, portfolioId);
+
+    return Holding.create({ userId, ticker, portfolioId: resolvedPortfolioId, ...validation.normalized });
 };
 
 const updateHolding = async (userId, holdingId, { shares, averagePurchasePrice, purchaseDate }) => {
@@ -103,11 +107,24 @@ const fetchFxRatesByCurrency = async (currencies) => {
     return new Map(entries);
 };
 
-const getPortfolio = async (userId) => {
-    const holdings = await Holding.find({ userId }).sort({ createdAt: 1 }).lean();
+/**
+ * @param {string} userId
+ * @param {string|null} [portfolioId] - scopes to one account when given; aggregates across every account when omitted (see the bookkeeping-depth plan's "Scope decision" - Analytics/Scenario rely on this default and pass nothing).
+ */
+const getPortfolio = async (userId, portfolioId = null) => {
+    await portfolioAccountService.ensureLegacyDataAssigned(userId);
+
+    const filter = portfolioId ? { userId, portfolioId } : { userId };
+    const holdings = await Holding.find(filter).sort({ createdAt: 1 }).lean();
+
+    const dividendIncomeUSD = await dividendService.getTotalDividendIncome(userId, { portfolioId });
 
     if (holdings.length === 0) {
-        return { holdings: [], summary: calculator.summarizePortfolio([]) };
+        const summary = calculator.summarizePortfolio([]);
+        return {
+            holdings: [],
+            summary: { ...summary, ...calculator.calculateTotalReturn(summary.totalGainLoss, dividendIncomeUSD, summary.totalCostBasis) },
+        };
     }
 
     const quotesByTicker = await fetchQuotesByTicker(holdings.map((h) => h.ticker));
@@ -119,7 +136,11 @@ const getPortfolio = async (userId) => {
         const fxRateToUSD = fxRatesByCurrency.get(currency) ?? null;
         return { ...calculator.enrichHolding(holding, quote?.price ?? null, fxRateToUSD), currency };
     });
-    const summary = calculator.summarizePortfolio(enrichedHoldings);
+    const baseSummary = calculator.summarizePortfolio(enrichedHoldings);
+    const summary = {
+        ...baseSummary,
+        ...calculator.calculateTotalReturn(baseSummary.totalGainLoss, dividendIncomeUSD, baseSummary.totalCostBasis),
+    };
 
     // Weight is cross-holding by definition - must compare USD-normalized value, never native currency (see portfolio.calculator.js's currency-normalization note).
     const holdingsWithWeight = enrichedHoldings.map((holding) => ({
@@ -133,8 +154,8 @@ const getPortfolio = async (userId) => {
     return { holdings: holdingsWithWeight, summary };
 };
 
-const getPortfolioSummary = async (userId) => {
-    const { summary } = await getPortfolio(userId);
+const getPortfolioSummary = async (userId, portfolioId = null) => {
+    const { summary } = await getPortfolio(userId, portfolioId);
     return summary;
 };
 
@@ -144,6 +165,7 @@ module.exports = {
     deleteHolding,
     getPortfolio,
     getPortfolioSummary,
+    fetchQuotesByTicker,
     HoldingNotFoundError,
     HoldingValidationError,
 };

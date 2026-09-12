@@ -7,6 +7,7 @@ const router = express.Router();
 router.use(requireIdentity);
 
 router.post("/", transactionController.addTransaction);
+router.post("/import", transactionController.importTransactions);
 router.get("/", transactionController.getTransactions);
 router.get("/:id", transactionController.getTransaction);
 router.put("/:id", transactionController.updateTransaction);

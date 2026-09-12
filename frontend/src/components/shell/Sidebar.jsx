@@ -17,9 +17,13 @@ import {
   Wallet,
   Newspaper,
   Bell,
+  SlidersHorizontal,
+  Beaker,
+  UserCircle,
 } from 'lucide-react';
 import { fetchJson } from '../../lib/api';
 import { subscribeToAlertsChanged } from '../../lib/alertsBadge';
+import { useAuth } from '../../context/AuthContext';
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -28,6 +32,8 @@ const GLOBAL_NAV_ITEMS = [
   { key: 'watchlist', label: 'Watchlist', to: '/watchlist', icon: ListChecks },
   { key: 'portfolio', label: 'Portfolio', to: '/portfolio', icon: Wallet },
   { key: 'alerts', label: 'Alerts', to: '/alerts', icon: Bell, badgeKey: 'alerts' },
+  { key: 'screener', label: 'Screener', to: '/screener', icon: SlidersHorizontal },
+  { key: 'simulator', label: 'Simulator', to: '/simulator', icon: Beaker },
 ];
 
 const NAV_ITEMS = [
@@ -280,6 +286,7 @@ function Logo() {
 function Sidebar({ mobileOpen = false, onClose }) {
   const match = useMatch('/financials/:ticker/*');
   const ticker = match?.params?.ticker || 'AAPL';
+  const { email, isAnonymous } = useAuth();
 
   const [unreadAlertCount, setUnreadAlertCount] = useState(0);
 
@@ -393,7 +400,15 @@ function Sidebar({ mobileOpen = false, onClose }) {
         </ul>
       </nav>
 
-      <div className="px-4">
+      <div className="space-y-3 px-4">
+        <NavLink
+          to="/account"
+          onClick={onClose}
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-navy-ink-muted transition-colors hover:bg-navy-800 hover:text-white"
+        >
+          <UserCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 truncate">{isAnonymous ? 'Sign In / Create Account' : email}</span>
+        </NavLink>
         <p className="text-xs leading-relaxed text-navy-ink-muted">
           Data for informational purposes only. Not investment advice.
         </p>
@@ -405,7 +420,7 @@ function Sidebar({ mobileOpen = false, onClose }) {
     <>
       {/* Desktop rail */}
       <aside
-        className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-navy-border bg-navy-900 lg:block"
+        className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-navy-border bg-navy-900 lg:block print:hidden"
         aria-label="Sidebar"
       >
         {railContent}
@@ -413,7 +428,7 @@ function Sidebar({ mobileOpen = false, onClose }) {
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="fixed inset-0 z-40 lg:hidden print:hidden">
           <div className="absolute inset-0 bg-navy-950/60" onClick={onClose} aria-hidden="true" />
           <aside
             className="absolute inset-y-0 left-0 w-72 max-w-[85vw] border-r border-navy-border bg-navy-900 shadow-lg"

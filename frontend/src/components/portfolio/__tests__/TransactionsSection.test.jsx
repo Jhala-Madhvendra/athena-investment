@@ -21,7 +21,7 @@ const mockTransactionsApi = ({ list, add, update, remove, timeline } = {}) => {
   fetchJson.mockImplementation((path, options = {}) => {
     const method = options.method || 'GET'
 
-    if (path === '/api/portfolio/transactions' && method === 'GET') {
+    if (path.startsWith('/api/portfolio/transactions?') && method === 'GET') {
       if (list?.__error) return Promise.reject(new Error(list.message))
       return Promise.resolve(list)
     }
@@ -37,7 +37,7 @@ const mockTransactionsApi = ({ list, add, update, remove, timeline } = {}) => {
       if (remove?.__error) return Promise.reject(new Error(remove.message))
       return Promise.resolve(remove ?? { message: 'Transaction removed.' })
     }
-    if (path === '/api/portfolio/holdings/history') {
+    if (path.startsWith('/api/portfolio/holdings/history?')) {
       if (timeline?.__error) return Promise.reject(new Error(timeline.message))
       return Promise.resolve(timeline)
     }
@@ -52,13 +52,13 @@ afterEach(() => {
 describe('TransactionsSection - loading and empty states', () => {
   it('shows an empty state when there are no transactions', async () => {
     mockTransactionsApi({ list: { transactions: [] } })
-    render(<TransactionsSection />)
+    render(<TransactionsSection portfolioId="acct-1" />)
     expect(await screen.findByText('No transactions recorded')).toBeInTheDocument()
   })
 
   it('shows an error state when the list request fails', async () => {
     mockTransactionsApi({ list: { __error: true, message: 'Server error.' } })
-    render(<TransactionsSection />)
+    render(<TransactionsSection portfolioId="acct-1" />)
     expect(await screen.findByText("Couldn't load your transactions")).toBeInTheDocument()
   })
 })
@@ -66,7 +66,7 @@ describe('TransactionsSection - loading and empty states', () => {
 describe('TransactionsSection - rendering a list', () => {
   it('renders a transaction with its ticker, type, quantity, and price', async () => {
     mockTransactionsApi({ list: { transactions: [transactionFixture()] } })
-    render(<TransactionsSection />)
+    render(<TransactionsSection portfolioId="acct-1" />)
 
     expect(await screen.findByText('AAPL')).toBeInTheDocument()
     expect(screen.getByText('BUY')).toBeInTheDocument()
@@ -78,7 +78,7 @@ describe('TransactionsSection - rendering a list', () => {
     mockTransactionsApi({
       list: { transactions: [transactionFixture({ ticker: 'TCS.BO', quantity: 4, price: 2315, currency: 'INR' })] },
     })
-    render(<TransactionsSection />)
+    render(<TransactionsSection portfolioId="acct-1" />)
 
     expect(await screen.findByText('TCS.BO')).toBeInTheDocument()
     expect(screen.getByText('2,315.00 INR')).toBeInTheDocument()
@@ -93,7 +93,7 @@ describe('TransactionsSection - recording a transaction', () => {
       add: { transaction: transactionFixture() },
     })
     const onTransactionsChanged = vi.fn()
-    const { container } = render(<TransactionsSection onTransactionsChanged={onTransactionsChanged} />)
+    const { container } = render(<TransactionsSection portfolioId="acct-1" onTransactionsChanged={onTransactionsChanged} />)
 
     await screen.findByText('No transactions recorded')
     fireEvent.click(screen.getAllByRole('button', { name: 'Record Transaction' })[0])
@@ -118,7 +118,7 @@ describe('TransactionsSection - recording a transaction', () => {
       list: { transactions: [] },
       add: { __error: true, message: 'Transaction validation failed.', errors: ['Quantity must be a positive number.'] },
     })
-    const { container } = render(<TransactionsSection />)
+    const { container } = render(<TransactionsSection portfolioId="acct-1" />)
 
     await screen.findByText('No transactions recorded')
     fireEvent.click(screen.getAllByRole('button', { name: 'Record Transaction' })[0])
@@ -135,7 +135,7 @@ describe('TransactionsSection - recording a transaction', () => {
 describe('TransactionsSection - deleting a transaction', () => {
   it('removes the transaction from the list on success', async () => {
     mockTransactionsApi({ list: { transactions: [transactionFixture()] }, remove: { message: 'Transaction removed.' } })
-    render(<TransactionsSection />)
+    render(<TransactionsSection portfolioId="acct-1" />)
 
     await screen.findByText('AAPL')
     mockTransactionsApi({ list: { transactions: [] }, remove: { message: 'Transaction removed.' } })
@@ -149,7 +149,7 @@ describe('TransactionsSection - deleting a transaction', () => {
       list: { transactions: [transactionFixture()] },
       remove: { __error: true, message: 'This change would leave AAPL at -3 shares on 2025-03-01, which is negative.' },
     })
-    render(<TransactionsSection />)
+    render(<TransactionsSection portfolioId="acct-1" />)
 
     await screen.findByText('AAPL')
     fireEvent.click(screen.getByRole('button', { name: 'Delete AAPL transaction' }))
@@ -165,10 +165,10 @@ describe('TransactionsSection - reconstructed holdings timeline', () => {
       list: { transactions: [transactionFixture()] },
       timeline: { hasTransactionHistory: true, timeline: [{ startDate: '2025-01-15', endDate: null, holdings: { AAPL: 10 } }] },
     })
-    render(<TransactionsSection />)
+    render(<TransactionsSection portfolioId="acct-1" />)
 
     await screen.findByText('AAPL')
-    expect(fetchJson).not.toHaveBeenCalledWith('/api/portfolio/holdings/history')
+    expect(fetchJson).not.toHaveBeenCalledWith('/api/portfolio/holdings/history?portfolioId=acct-1', undefined)
 
     fireEvent.click(screen.getByRole('button', { name: 'Show reconstructed holdings timeline' }))
 

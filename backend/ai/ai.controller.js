@@ -1,4 +1,5 @@
 const aiService = require("./ai.service");
+const aiQuotaService = require("./aiQuota.service");
 const companyService = require("../services/company.service");
 const { validateReportRequest } = require("./ai.validator");
 const { sendServiceError, resolveTickerParam: resolveTickerParamShared } = require("../utils/httpErrors");
@@ -19,11 +20,22 @@ const generateResearchReport = async (req, res) => {
         const report = await aiService.getOrGenerateReport(resolvedTicker, {
             regenerate: requestValidation.regenerate,
             preTaxCostOfDebt: requestValidation.preTaxCostOfDebt,
+            userId: req.userId,
         });
 
         return res.status(200).json(report);
     } catch (error) {
         return sendServiceError(res, error, 502);
+    }
+};
+
+/** GET /usage - the caller's own current-month AI-generation usage, shared across every LLM-cost-bearing feature. */
+const getUsage = async (req, res) => {
+    try {
+        const usage = await aiQuotaService.getUsage(req.userId);
+        return res.status(200).json(usage);
+    } catch (error) {
+        return sendServiceError(res, error, 500);
     }
 };
 
@@ -45,4 +57,4 @@ const getResearchReport = async (req, res) => {
     }
 };
 
-module.exports = { generateResearchReport, getResearchReport };
+module.exports = { generateResearchReport, getResearchReport, getUsage };

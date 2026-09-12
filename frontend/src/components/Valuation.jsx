@@ -8,6 +8,8 @@ import EmptyState from './ui/EmptyState';
 import Tabs from './ui/Tabs';
 import ComparableCompanies from './ComparableCompanies';
 import DCFAssumptionsForm from './valuation/DCFAssumptionsForm';
+import SavedScenariosSection from './valuation/SavedScenariosSection';
+import ShareSnapshotButton from './ShareSnapshotButton';
 import HistoricalFCFFTable from './valuation/HistoricalFCFFTable';
 import CapitalStructureSummary from './valuation/CapitalStructureSummary';
 import FCFFForecastTable from './valuation/FCFFForecastTable';
@@ -292,6 +294,8 @@ function Valuation() {
         />
       </Card>
 
+      <SavedScenariosSection ticker={ticker} assumptions={values} />
+
       {resultErrors.length > 0 && (
         <Card title="Calculation Errors">
           <ul className="list-disc space-y-1 pl-5 text-sm text-critical">
@@ -314,7 +318,10 @@ function Valuation() {
             </div>
           </Card>
 
-          <Card title="DCF Calculation">
+          <Card
+            title="DCF Calculation"
+            action={<ShareSnapshotButton type="dcf" label={`${ticker?.toUpperCase()} DCF`} buildPayload={() => ({ ...result, currency })} />}
+          >
             <DCFSummary result={result} />
           </Card>
 

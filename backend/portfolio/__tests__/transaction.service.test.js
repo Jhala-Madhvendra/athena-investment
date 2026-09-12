@@ -6,13 +6,23 @@ jest.mock("../transaction.model", () => ({
     create: jest.fn(),
 }));
 jest.mock("../../market/market.service", () => ({ getCurrentMarketData: jest.fn() }));
+jest.mock("../portfolioAccount.service", () => ({
+    resolveWritablePortfolioId: jest.fn(),
+    ensureLegacyDataAssigned: jest.fn(),
+}));
 
 const Transaction = require("../transaction.model");
 const marketService = require("../../market/market.service");
+const portfolioAccountService = require("../portfolioAccount.service");
 const transactionService = require("../transaction.service");
 
 const chainableLean = (docs) => ({ lean: jest.fn(() => Promise.resolve(docs)) });
 const chainableSortLean = (docs) => ({ sort: jest.fn(() => ({ lean: jest.fn(() => Promise.resolve(docs)) })) });
+
+beforeEach(() => {
+    portfolioAccountService.resolveWritablePortfolioId.mockResolvedValue("default-account");
+    portfolioAccountService.ensureLegacyDataAssigned.mockResolvedValue(undefined);
+});
 
 afterEach(() => {
     jest.clearAllMocks();
@@ -33,10 +43,28 @@ describe("addTransaction", () => {
 
         await transactionService.addTransaction("user1", { ticker: "AAPL", type: "BUY", quantity: 10, price: 100, transactionDate: "2025-01-01" });
 
-        expect(Transaction.find).toHaveBeenCalledWith({ userId: "user1", ticker: "AAPL" });
+        expect(Transaction.find).toHaveBeenCalledWith({ userId: "user1", ticker: "AAPL", portfolioId: "default-account" });
         expect(Transaction.create).toHaveBeenCalledWith(
-            expect.objectContaining({ userId: "user1", ticker: "AAPL", type: "BUY", quantity: 10, price: 100 })
+            expect.objectContaining({ userId: "user1", ticker: "AAPL", type: "BUY", quantity: 10, price: 100, portfolioId: "default-account" })
         );
+    });
+
+    it("scopes the negative-holdings sibling check to the same account, not other accounts", async () => {
+        Transaction.find.mockReturnValue(chainableLean([]));
+        Transaction.create.mockResolvedValue({ _id: "t1" });
+        portfolioAccountService.resolveWritablePortfolioId.mockResolvedValue("acct-2");
+
+        await transactionService.addTransaction("user1", {
+            ticker: "AAPL",
+            type: "BUY",
+            quantity: 10,
+            price: 100,
+            transactionDate: "2025-01-01",
+            portfolioId: "acct-2",
+        });
+
+        expect(portfolioAccountService.resolveWritablePortfolioId).toHaveBeenCalledWith("user1", "acct-2");
+        expect(Transaction.find).toHaveBeenCalledWith({ userId: "user1", ticker: "AAPL", portfolioId: "acct-2" });
     });
 
     it("allows a SELL that does not exceed prior holdings", async () => {
@@ -127,7 +155,12 @@ describe("updateTransaction", () => {
 
         await transactionService.updateTransaction("user1", "t1", { type: "BUY", quantity: 10, price: 100, transactionDate: "2025-01-01" });
 
-        expect(Transaction.find).toHaveBeenCalledWith({ userId: "user1", ticker: "AAPL", _id: { $ne: "t1" } });
+        expect(Transaction.find).toHaveBeenCalledWith({
+            userId: "user1",
+            ticker: "AAPL",
+            portfolioId: undefined,
+            _id: { $ne: "t1" },
+        });
     });
 });
 
@@ -225,5 +258,13 @@ describe("getTransactions", () => {
         await transactionService.getTransactions("user1", { ticker: "AAPL" });
 
         expect(Transaction.find).toHaveBeenCalledWith({ userId: "user1", ticker: "AAPL" });
+    });
+
+    it("filters by portfolioId when provided, aggregates across accounts when omitted", async () => {
+        Transaction.find.mockReturnValue(chainableSortLean([]));
+
+        await transactionService.getTransactions("user1", { portfolioId: "acct-2" });
+
+        expect(Transaction.find).toHaveBeenCalledWith({ userId: "user1", portfolioId: "acct-2" });
     });
 });

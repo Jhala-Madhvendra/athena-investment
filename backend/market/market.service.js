@@ -13,19 +13,22 @@ class CompanyNotFoundError extends Error {
 
 class InvalidPeriodError extends Error {
     constructor(period) {
-        super(`Invalid period "${period}". Supported periods are 1m, 3m, 6m, 1y, 5y.`);
+        super(`Invalid period "${period}". Supported periods are 1m, 3m, 6m, 1y, 5y, 10y.`);
         this.name = "InvalidPeriodError";
         this.statusCode = 400;
     }
 }
 
-const PERIOD_TO_YAHOO_RANGE = { "1m": "1mo", "3m": "3mo", "6m": "6mo", "1y": "1y", "5y": "5y" };
-const PERIOD_ORDER = ["1m", "3m", "6m", "1y", "5y"];
-const PERIOD_LABELS = { "1m": "1M", "3m": "3M", "6m": "6M", "1y": "1Y", "5y": "5Y" };
-const MAX_PERIOD = "5y";
+const PERIOD_TO_YAHOO_RANGE = { "1m": "1mo", "3m": "3mo", "6m": "6mo", "1y": "1y", "5y": "5y", "10y": "10y" };
+const PERIOD_ORDER = ["1m", "3m", "6m", "1y", "5y", "10y"];
+const PERIOD_LABELS = { "1m": "1M", "3m": "3M", "6m": "6M", "1y": "1Y", "5y": "5Y", "10y": "10Y" };
+const MAX_PERIOD = "10y";
 const COVERAGE_BUFFER_DAYS = 5;
 const FRESHNESS_THRESHOLD_DAYS = 5;
-const QUOTE_CACHE_TTL_MS = 60 * 1000;
+// Shortened from 60s so quotes look meaningfully fresher (item 15's "fresher
+// quotes" upgrade) without hammering Yahoo's unofficial, unauthenticated
+// endpoint - still a real cache, not zero.
+const QUOTE_CACHE_TTL_MS = 15 * 1000;
 
 const normalizeTicker = (ticker) => ticker.trim().toUpperCase();
 
@@ -63,6 +66,9 @@ const getRequiredStartDate = (period) => {
             break;
         case "5y":
             start.setUTCFullYear(start.getUTCFullYear() - 5);
+            break;
+        case "10y":
+            start.setUTCFullYear(start.getUTCFullYear() - 10);
             break;
         default:
             throw new InvalidPeriodError(period);

@@ -13,6 +13,14 @@ const holdingSchema = new mongoose.Schema(
             ref: "User",
             required: true,
         },
+        // Optional - see portfolioAccount.service.js's ensureLegacyDataAssigned
+        // for why this is never required at the schema level (pre-sprint rows
+        // are backfilled lazily rather than required to already have one).
+        portfolioId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "PortfolioAccount",
+            default: null,
+        },
         ticker: {
             type: String,
             required: true,
@@ -38,5 +46,6 @@ const holdingSchema = new mongoose.Schema(
 );
 
 holdingSchema.index({ userId: 1 });
+holdingSchema.index({ userId: 1, portfolioId: 1 });
 
 module.exports = mongoose.model("Holding", holdingSchema);

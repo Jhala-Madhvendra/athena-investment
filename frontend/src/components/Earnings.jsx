@@ -8,6 +8,7 @@ import NewsCard from './news/NewsCard'
 import EarningsComparisonTable from './earnings/EarningsComparisonTable'
 import EarningsQualitySection from './earnings/EarningsQualitySection'
 import MarketReactionCard from './earnings/MarketReactionCard'
+import EarningsAiSummarySection from './earnings/EarningsAiSummarySection'
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -181,6 +182,8 @@ function Earnings() {
       <Card title="Performance Summary" eyebrow={data.dataFreshness?.statementType}>
         <EarningsComparisonTable groups={buildGroups(data)} latestLabel={period.latestPeriod} previousLabel={period.previousPeriod} />
       </Card>
+
+      <EarningsAiSummarySection ticker={ticker} fiscalYearKey={period.latestPeriod} />
 
       <Card title="Earnings Quality">
         <EarningsQualitySection observations={qualityObservations} fcfConversion={cashFlow?.fcfConversion} />

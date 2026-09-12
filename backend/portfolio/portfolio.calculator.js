@@ -48,6 +48,28 @@ const convertToUSD = (amount, fxRateToUSD) =>
         : null;
 
 /**
+ * Total return folding in dividend income alongside price-based unrealized
+ * gain/loss - additive to summarizePortfolio's existing totalGainLoss/
+ * totalReturnPercent (left untouched, still price-only) rather than a
+ * breaking replacement. null-safe the same way calculateReturnPercent is:
+ * an unknown price-based gain makes the combined figure unknown too, since
+ * "dividends only" would understate a portfolio with unpriced holdings.
+ */
+const calculateTotalReturn = (unrealizedGainLossUSD, dividendIncomeUSD, totalCostBasisUSD) => {
+    if (unrealizedGainLossUSD === null) {
+        return { totalDividendIncome: dividendIncomeUSD, totalReturnIncludingDividends: null, totalReturnIncludingDividendsPercent: null };
+    }
+
+    const totalReturnIncludingDividends = unrealizedGainLossUSD + dividendIncomeUSD;
+    const totalReturnIncludingDividendsPercent =
+        typeof totalCostBasisUSD === "number" && totalCostBasisUSD > 0
+            ? (totalReturnIncludingDividends / totalCostBasisUSD) * 100
+            : null;
+
+    return { totalDividendIncome: dividendIncomeUSD, totalReturnIncludingDividends, totalReturnIncludingDividendsPercent };
+};
+
+/**
  * Enriches one raw holding lot with its computed figures. A missing price
  * or a missing FX rate each degrade only what they affect - never throws,
  * never fabricates a value for the piece that's actually unknown.
@@ -199,6 +221,7 @@ module.exports = {
     calculateCurrentValue,
     calculateGainLoss,
     calculateReturnPercent,
+    calculateTotalReturn,
     enrichHolding,
     groupByTicker,
     summarizePortfolio,

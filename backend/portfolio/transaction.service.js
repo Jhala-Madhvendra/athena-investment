@@ -17,6 +17,7 @@ const Transaction = require("./transaction.model");
 const marketService = require("../market/market.service");
 const { validateTransactionInput } = require("./transaction.validator");
 const reconstructionCalculator = require("./holdingsReconstruction.calculator");
+const portfolioAccountService = require("./portfolioAccount.service");
 
 class TransactionNotFoundError extends Error {
     constructor() {
@@ -57,13 +58,18 @@ const assertNoNegativeHoldings = (candidateTimeline) => {
     }
 };
 
-const addTransaction = async (userId, { ticker, type, quantity, price, transactionDate }) => {
+const addTransaction = async (userId, { ticker, type, quantity, price, transactionDate, portfolioId }) => {
     const validation = validateTransactionInput({ type, quantity, price, transactionDate });
     if (!validation.isValid) {
         throw new TransactionValidationError(validation.errors);
     }
 
-    const siblings = await Transaction.find({ userId, ticker }).lean();
+    const resolvedPortfolioId = await portfolioAccountService.resolveWritablePortfolioId(userId, portfolioId);
+
+    // Siblings are scoped to the SAME account - "can't sell more than you
+    // held" is an account-level invariant, so a SELL in one account is never
+    // constrained by BUYs sitting in a different account.
+    const siblings = await Transaction.find({ userId, ticker, portfolioId: resolvedPortfolioId }).lean();
 
     // Pre-generate the id so the pre-write replay check and the actual
     // saved document agree on the same tie-break ordering.
@@ -71,7 +77,7 @@ const addTransaction = async (userId, { ticker, type, quantity, price, transacti
     const candidate = { _id, ticker, createdAt: new Date(), ...validation.normalized };
     assertNoNegativeHoldings([...siblings, candidate]);
 
-    return Transaction.create({ _id, userId, ticker, ...validation.normalized });
+    return Transaction.create({ _id, userId, ticker, portfolioId: resolvedPortfolioId, ...validation.normalized });
 };
 
 const updateTransaction = async (userId, transactionId, { type, quantity, price, transactionDate }) => {
@@ -85,10 +91,16 @@ const updateTransaction = async (userId, transactionId, { type, quantity, price,
         throw new TransactionNotFoundError();
     }
 
-    // Ticker is immutable on edit (same as Holding) - moving a transaction to
-    // a different ticker is a bigger operation (re-validating two separate
-    // timelines) than "fix the quantity/price/date I mistyped."
-    const siblings = await Transaction.find({ userId, ticker: existing.ticker, _id: { $ne: transactionId } }).lean();
+    // Ticker and account are both immutable on edit (same reasoning as
+    // Holding) - moving a transaction to a different ticker or account is a
+    // bigger operation (re-validating two separate timelines) than "fix the
+    // quantity/price/date I mistyped."
+    const siblings = await Transaction.find({
+        userId,
+        ticker: existing.ticker,
+        portfolioId: existing.portfolioId,
+        _id: { $ne: transactionId },
+    }).lean();
     const candidate = { ...existing, ...validation.normalized };
     assertNoNegativeHoldings([...siblings, candidate]);
 
@@ -107,7 +119,12 @@ const deleteTransaction = async (userId, transactionId) => {
         throw new TransactionNotFoundError();
     }
 
-    const siblings = await Transaction.find({ userId, ticker: existing.ticker, _id: { $ne: transactionId } }).lean();
+    const siblings = await Transaction.find({
+        userId,
+        ticker: existing.ticker,
+        portfolioId: existing.portfolioId,
+        _id: { $ne: transactionId },
+    }).lean();
     assertNoNegativeHoldings(siblings);
 
     const transaction = await Transaction.findOneAndDelete({ _id: transactionId, userId });
@@ -145,8 +162,13 @@ const fetchCurrenciesByTicker = async (tickers) => {
     return new Map(entries);
 };
 
-const getTransactions = async (userId, { ticker } = {}) => {
-    const filter = ticker ? { userId, ticker } : { userId };
+const getTransactions = async (userId, { ticker, portfolioId } = {}) => {
+    await portfolioAccountService.ensureLegacyDataAssigned(userId);
+
+    const filter = { userId };
+    if (ticker) filter.ticker = ticker;
+    if (portfolioId) filter.portfolioId = portfolioId;
+
     const transactions = await Transaction.find(filter).sort({ transactionDate: 1, createdAt: 1 }).lean();
 
     if (transactions.length === 0) return transactions;

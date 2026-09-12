@@ -23,6 +23,13 @@ const transactionSchema = new mongoose.Schema(
             ref: "User",
             required: true,
         },
+        // Optional - same lazily-backfilled pattern as holding.model.js's
+        // portfolioId. See portfolioAccount.service.js.
+        portfolioId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "PortfolioAccount",
+            default: null,
+        },
         ticker: {
             type: String,
             required: true,
@@ -64,5 +71,6 @@ const transactionSchema = new mongoose.Schema(
 // (or all tickers) and sorts chronologically - this compound index serves
 // both shapes directly.
 transactionSchema.index({ userId: 1, ticker: 1, transactionDate: 1 });
+transactionSchema.index({ userId: 1, portfolioId: 1 });
 
 module.exports = mongoose.model("Transaction", transactionSchema);

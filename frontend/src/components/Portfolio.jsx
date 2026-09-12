@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, ExternalLink, ListPlus, Wallet, X, Bell } from 'lucide-react'
+import { Plus, Pencil, Trash2, ExternalLink, ListPlus, Wallet, X, Bell, Download, Printer } from 'lucide-react'
 import Card from './ui/Card'
 import Skeleton from './ui/Skeleton'
 import ErrorState from './ui/ErrorState'
@@ -10,9 +10,22 @@ import StatCard from './ui/StatCard'
 import PortfolioAnalyticsSection from './portfolio/PortfolioAnalyticsSection'
 import ScenarioSection from './portfolio/scenario/ScenarioSection'
 import TransactionsSection from './portfolio/TransactionsSection'
+import PortfolioAccountSwitcher from './portfolio/PortfolioAccountSwitcher'
+import DividendsSection from './portfolio/DividendsSection'
+import TaxLotsSection from './portfolio/TaxLotsSection'
+import PortfolioDigestCard from './PortfolioDigestCard'
+import ShareSnapshotButton from './ShareSnapshotButton'
 import { fetchJson } from '../lib/api'
 import { formatPercent, formatPerShare } from '../lib/compsFormat'
 import { getSentimentTier } from '../lib/scoreTokens'
+import { downloadCsv } from '../lib/csvExport'
+
+const PORTFOLIO_TABS = [
+  { key: 'holdings', label: 'Holdings' },
+  { key: 'transactions', label: 'Transactions' },
+  { key: 'dividends', label: 'Dividends' },
+  { key: 'taxlots', label: 'Tax Lots' },
+]
 
 const formatCurrency = (value, currency) => {
   if (typeof value !== 'number') return '—'
@@ -34,6 +47,9 @@ const emptyFormValues = { ticker: '', shares: '', averagePurchasePrice: '', purc
  */
 function Portfolio() {
   const navigate = useNavigate()
+
+  const [portfolioId, setPortfolioId] = useState(null)
+  const [activeTab, setActiveTab] = useState('holdings')
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -58,10 +74,11 @@ function Portfolio() {
   const [transactionsVersion, setTransactionsVersion] = useState(0)
 
   const loadPortfolio = async (signal) => {
+    if (!portfolioId) return
     setLoading(true)
     setError('')
     try {
-      const data = await fetchJson('/api/portfolio', undefined, signal)
+      const data = await fetchJson(`/api/portfolio?portfolioId=${encodeURIComponent(portfolioId)}`, undefined, signal)
       setHoldings(data.holdings)
       setSummary(data.summary)
     } catch (requestError) {
@@ -72,11 +89,17 @@ function Portfolio() {
     }
   }
 
+  // Waits for PortfolioAccountSwitcher to report a concrete account id before
+  // fetching anything - never relies on the backend's "omitted portfolioId =
+  // aggregate across every account" default for this page (see the
+  // bookkeeping-depth plan's "Scope decision" section).
   useEffect(() => {
+    if (!portfolioId) return undefined
     const controller = new AbortController()
     loadPortfolio(controller.signal)
     return () => controller.abort()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-fetch whenever the selected account changes
+  }, [portfolioId])
 
   const tickerKey = [...new Set(holdings.map((h) => h.ticker))].join(',')
 
@@ -140,7 +163,7 @@ function Portfolio() {
       } else {
         await fetchJson('/api/portfolio/holdings', {
           method: 'POST',
-          body: JSON.stringify({ ...body, ticker: formValues.ticker }),
+          body: JSON.stringify({ ...body, ticker: formValues.ticker, portfolioId }),
         })
       }
       closeForm()
@@ -176,10 +199,16 @@ function Portfolio() {
     }
   }
 
+  // Mounted in every branch below (including while holdings are still
+  // loading) - this is what resolves portfolioId in the first place, so it
+  // can never be gated behind a "loading" check that itself depends on
+  // portfolioId being set.
+  const accountSwitcher = <PortfolioAccountSwitcher onChange={setPortfolioId} />
+
   if (loading) {
     return (
       <div className="space-y-6">
-        <SectionHeader title="Portfolio" description="Investments you own." />
+        <SectionHeader title="Portfolio" description="Investments you own." action={accountSwitcher} />
         <Skeleton variant="card" count={1} />
       </div>
     )
@@ -188,7 +217,7 @@ function Portfolio() {
   if (error) {
     return (
       <div className="space-y-6">
-        <SectionHeader title="Portfolio" description="Investments you own." />
+        <SectionHeader title="Portfolio" description="Investments you own." action={accountSwitcher} />
         <ErrorState title="Couldn't load your portfolio" message={error} />
       </div>
     )
@@ -197,6 +226,21 @@ function Portfolio() {
   const returnTier = getSentimentTier(
     typeof summary?.totalReturnPercent === 'number' ? summary.totalReturnPercent >= 0 : null
   )
+
+  const handleDownloadCsv = () => {
+    downloadCsv(
+      'portfolio.csv',
+      holdings.map((h) => ({
+        Ticker: h.ticker,
+        Shares: h.shares,
+        'Average Cost': h.averagePurchasePrice,
+        'Current Price': h.priceUnavailable ? '' : h.currentPrice,
+        'Current Value': h.priceUnavailable ? '' : h.currentValue,
+        'Gain/Loss': h.priceUnavailable ? '' : h.gainLoss,
+        'Return %': h.returnPercent,
+      }))
+    )
+  }
 
   const addHoldingButton = (
     <button
@@ -209,30 +253,79 @@ function Portfolio() {
     </button>
   )
 
+  const reportActions = (
+    <div className="flex flex-wrap items-center gap-2 print:hidden">
+      {holdings.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={handleDownloadCsv}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken"
+          >
+            <Printer className="h-4 w-4" aria-hidden="true" />
+            PDF
+          </button>
+          <ShareSnapshotButton type="portfolio" label="My Portfolio" buildPayload={() => ({ holdings, summary })} />
+        </>
+      )}
+      {addHoldingButton}
+    </div>
+  )
+
   return (
     <div className="space-y-6">
-      <SectionHeader title="Portfolio" description="Investments you own - cost basis, value, and gain/loss." action={addHoldingButton} />
+      <SectionHeader title="Portfolio" description="Investments you own - cost basis, value, and gain/loss." action={accountSwitcher} />
 
-      {Object.values(alertCounts).filter((count) => count > 0).length > 0 && (
-        <Link
-          to="/alerts"
-          className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-ink-secondary transition-colors hover:bg-warning/20"
-        >
-          <span className="flex items-center gap-2">
-            <Bell className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-            <span>
-              <span className="font-semibold text-ink">
-                {Object.values(alertCounts).filter((count) => count > 0).length} holding
-                {Object.values(alertCounts).filter((count) => count > 0).length === 1 ? '' : 's'}
-              </span>{' '}
-              require attention.
-            </span>
-          </span>
-          <span className="shrink-0 font-medium text-brand-600">View Alerts →</span>
-        </Link>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div role="tablist" className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface-sunken p-1">
+          {PORTFOLIO_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`shrink-0 rounded-md px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                activeTab === tab.key ? 'bg-surface-raised text-ink shadow-xs' : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {activeTab === 'holdings' && reportActions}
+      </div>
 
-      {holdings.length === 0 ? (
+      {activeTab === 'holdings' && (
+        <>
+          {Object.values(alertCounts).filter((count) => count > 0).length > 0 && (
+            <Link
+              to="/alerts"
+              className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-ink-secondary transition-colors hover:bg-warning/20 print:hidden"
+            >
+              <span className="flex items-center gap-2">
+                <Bell className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                <span>
+                  <span className="font-semibold text-ink">
+                    {Object.values(alertCounts).filter((count) => count > 0).length} holding
+                    {Object.values(alertCounts).filter((count) => count > 0).length === 1 ? '' : 's'}
+                  </span>{' '}
+                  require attention.
+                </span>
+              </span>
+              <span className="shrink-0 font-medium text-brand-600">View Alerts →</span>
+            </Link>
+          )}
+
+          {holdings.length === 0 ? (
         <EmptyState
           icon={Wallet}
           title="No holdings yet"
@@ -241,6 +334,8 @@ function Portfolio() {
         />
       ) : (
         <>
+          <PortfolioDigestCard />
+
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard label="Current Value" value={formatCurrency(summary.totalCurrentValue)} />
             <StatCard label="Cost Basis" value={formatCurrency(summary.totalCostBasis)} />
@@ -255,6 +350,12 @@ function Portfolio() {
               hex={typeof summary.totalReturnPercent === 'number' ? returnTier.hex : undefined}
             />
             <StatCard label="Holdings" value={summary.numberOfHoldings} sublabel={`${summary.numberOfCompanies} companies`} />
+            <StatCard label="Dividend Income" value={formatCurrency(summary.totalDividendIncome)} />
+            <StatCard
+              label="Total Return (incl. Dividends)"
+              value={formatCurrency(summary.totalReturnIncludingDividends)}
+              hex={typeof summary.totalReturnIncludingDividends === 'number' ? getSentimentTier(summary.totalReturnIncludingDividends >= 0).hex : undefined}
+            />
           </div>
 
           <Card title="Portfolio Intelligence" eyebrow="Analytical observations, not advice">
@@ -304,19 +405,19 @@ function Portfolio() {
           )}
 
           <Card padded={false}>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="overflow-x-auto print:overflow-visible">
+              <table className="w-full text-left text-sm print:text-xs">
                 <thead>
                   <tr className="border-b border-border text-xs font-semibold tracking-wide text-ink-muted uppercase">
-                    <th className="px-5 py-3">Company</th>
-                    <th className="px-3 py-3">Shares</th>
-                    <th className="px-3 py-3">Average Cost</th>
-                    <th className="px-3 py-3">Current Price</th>
-                    <th className="px-3 py-3">Current Value</th>
-                    <th className="px-3 py-3">Gain/Loss</th>
-                    <th className="px-3 py-3">Return</th>
-                    <th className="px-3 py-3">Weight</th>
-                    <th className="px-5 py-3 text-right">Actions</th>
+                    <th className="px-5 py-3 print:px-2">Company</th>
+                    <th className="px-3 py-3 print:px-2">Shares</th>
+                    <th className="px-3 py-3 print:px-2">Average Cost</th>
+                    <th className="px-3 py-3 print:px-2">Current Price</th>
+                    <th className="px-3 py-3 print:px-2">Current Value</th>
+                    <th className="px-3 py-3 print:px-2">Gain/Loss</th>
+                    <th className="px-3 py-3 print:px-2">Return</th>
+                    <th className="px-3 py-3 print:px-2">Weight</th>
+                    <th className="px-5 py-3 text-right print:hidden">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -327,8 +428,8 @@ function Portfolio() {
                     const wlState = watchlistState[holding.ticker]
 
                     return (
-                      <tr key={holding._id} className="transition-colors hover:bg-surface-sunken/50">
-                        <td className="px-5 py-3">
+                      <tr key={holding._id} className="transition-colors hover:bg-surface-sunken/50 print:break-inside-avoid">
+                        <td className="px-5 py-3 print:px-2 print:py-1.5">
                           <button
                             type="button"
                             onClick={() => navigate(`/financials/${encodeURIComponent(holding.ticker)}/overview`)}
@@ -337,24 +438,30 @@ function Portfolio() {
                             {holding.ticker}
                           </button>
                         </td>
-                        <td className="px-3 py-3 tabular-nums text-ink">{holding.shares}</td>
-                        <td className="px-3 py-3 tabular-nums text-ink">
+                        <td className="px-3 py-3 tabular-nums text-ink print:px-2 print:py-1.5">{holding.shares}</td>
+                        <td className="px-3 py-3 tabular-nums text-ink print:px-2 print:py-1.5">
                           {formatCurrency(holding.averagePurchasePrice, holding.currency)}
                         </td>
-                        <td className="px-3 py-3 tabular-nums text-ink">
+                        <td className="px-3 py-3 tabular-nums text-ink print:px-2 print:py-1.5">
                           {holding.priceUnavailable ? '—' : formatPerShare(holding.currentPrice, holding.currency)}
                         </td>
-                        <td className="px-3 py-3 tabular-nums text-ink">
+                        <td className="px-3 py-3 tabular-nums text-ink print:px-2 print:py-1.5">
                           {holding.priceUnavailable ? '—' : formatCurrency(holding.currentValue, holding.currency)}
                         </td>
-                        <td className="px-3 py-3 tabular-nums" style={{ color: holding.priceUnavailable ? undefined : gainTier.hex }}>
+                        <td
+                          className="px-3 py-3 tabular-nums print:px-2 print:py-1.5"
+                          style={{ color: holding.priceUnavailable ? undefined : gainTier.hex }}
+                        >
                           {holding.priceUnavailable ? '—' : formatCurrency(holding.gainLoss, holding.currency)}
                         </td>
-                        <td className="px-3 py-3 tabular-nums" style={{ color: holding.priceUnavailable ? undefined : gainTier.hex }}>
+                        <td
+                          className="px-3 py-3 tabular-nums print:px-2 print:py-1.5"
+                          style={{ color: holding.priceUnavailable ? undefined : gainTier.hex }}
+                        >
                           {formatPercent(holding.returnPercent)}
                         </td>
-                        <td className="px-3 py-3 tabular-nums text-ink">{formatPercent(holding.weightPercent)}</td>
-                        <td className="px-5 py-3">
+                        <td className="px-3 py-3 tabular-nums text-ink print:px-2 print:py-1.5">{formatPercent(holding.weightPercent)}</td>
+                        <td className="px-5 py-3 print:hidden">
                           <div className="flex items-center justify-end gap-1">
                             <button
                               type="button"
@@ -404,19 +511,24 @@ function Portfolio() {
             </div>
           </Card>
 
-          <PortfolioAnalyticsSection holdingsCount={holdings.length} transactionsVersion={transactionsVersion} />
-          <ScenarioSection holdingsCount={holdings.length} />
+          <div className="print:hidden">
+            <div className="space-y-6">
+              <PortfolioAnalyticsSection holdingsCount={holdings.length} transactionsVersion={transactionsVersion} />
+              <ScenarioSection holdingsCount={holdings.length} />
+            </div>
+          </div>
+            </>
+          )}
         </>
       )}
 
-      {/*
-        Rendered regardless of whether the user has current Holding rows -
-        the Transaction ledger is a separate, additive input (see
-        TransactionsSection's header comment), so someone who's only ever
-        recorded transactions (no Holding yet) must still be able to see
-        and manage them here.
-      */}
-      <TransactionsSection onTransactionsChanged={() => setTransactionsVersion((v) => v + 1)} />
+      {activeTab === 'transactions' && (
+        <TransactionsSection portfolioId={portfolioId} onTransactionsChanged={() => setTransactionsVersion((v) => v + 1)} />
+      )}
+
+      {activeTab === 'dividends' && <DividendsSection portfolioId={portfolioId} />}
+
+      {activeTab === 'taxlots' && <TaxLotsSection portfolioId={portfolioId} />}
 
       <p className="text-xs text-ink-muted">
         This is an analytical tracker only - Athena does not connect to a brokerage, execute trades, or recommend
@@ -424,7 +536,7 @@ function Portfolio() {
       </p>
 
       {formOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 px-4 print:hidden">
           <div className="w-full max-w-sm rounded-xl border border-border bg-surface-raised p-5 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-semibold text-ink">{editingHolding ? 'Edit Holding' : 'Add Holding'}</h3>

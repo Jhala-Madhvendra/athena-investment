@@ -9,7 +9,8 @@ const isValidDateString = (value) => typeof value === "string" && !Number.isNaN(
 
 const getPortfolio = async (req, res) => {
     try {
-        const portfolio = await portfolioService.getPortfolio(req.userId);
+        const portfolioId = isValidObjectId(req.query?.portfolioId) ? req.query.portfolioId : null;
+        const portfolio = await portfolioService.getPortfolio(req.userId, portfolioId);
         return res.status(200).json(portfolio);
     } catch (error) {
         return sendServiceError(res, error, 500);
@@ -18,7 +19,8 @@ const getPortfolio = async (req, res) => {
 
 const getSummary = async (req, res) => {
     try {
-        const summary = await portfolioService.getPortfolioSummary(req.userId);
+        const portfolioId = isValidObjectId(req.query?.portfolioId) ? req.query.portfolioId : null;
+        const summary = await portfolioService.getPortfolioSummary(req.userId, portfolioId);
         return res.status(200).json({ summary });
     } catch (error) {
         return sendServiceError(res, error, 500);
@@ -35,6 +37,7 @@ const addHolding = async (req, res) => {
             shares: req.body?.shares,
             averagePurchasePrice: req.body?.averagePurchasePrice,
             purchaseDate: req.body?.purchaseDate,
+            portfolioId: isValidObjectId(req.body?.portfolioId) ? req.body.portfolioId : undefined,
         });
 
         return res.status(201).json({ holding });
@@ -85,7 +88,8 @@ const getHoldingsAt = async (req, res) => {
             return res.status(400).json({ message: "A valid ?date=YYYY-MM-DD query parameter is required." });
         }
 
-        const result = await portfolioHistoryService.getHoldingsAt(req.userId, date);
+        const portfolioId = isValidObjectId(req.query?.portfolioId) ? req.query.portfolioId : null;
+        const result = await portfolioHistoryService.getHoldingsAt(req.userId, date, portfolioId);
         return res.status(200).json(result);
     } catch (error) {
         return sendServiceError(res, error, 500);
@@ -95,7 +99,8 @@ const getHoldingsAt = async (req, res) => {
 /** GET /api/portfolio/holdings/history - the full reconstructed holdings timeline, one interval per composition change. */
 const getHoldingsHistory = async (req, res) => {
     try {
-        const result = await portfolioHistoryService.getHoldingsTimeline(req.userId);
+        const portfolioId = isValidObjectId(req.query?.portfolioId) ? req.query.portfolioId : null;
+        const result = await portfolioHistoryService.getHoldingsTimeline(req.userId, portfolioId);
         return res.status(200).json(result);
     } catch (error) {
         return sendServiceError(res, error, 500);

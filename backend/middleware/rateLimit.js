@@ -36,4 +36,16 @@ const monitorLimiter = rateLimit({
     message: { message: "Too many monitoring requests. Please wait before checking for new alerts again." },
 });
 
-module.exports = { generalLimiter, expensiveLimiter, monitorLimiter };
+// Stricter limit for POST /api/identity/signup and /login - the first
+// meaningful brute-force targets this app has ever had. Keyed by IP like
+// every other limiter here (no per-account keying exists anywhere yet).
+const authLimiter = rateLimit({
+    windowMs: env.rateLimitWindowMs,
+    max: env.authRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipInTest,
+    message: { message: "Too many attempts. Please wait before trying again." },
+});
+
+module.exports = { generalLimiter, expensiveLimiter, monitorLimiter, authLimiter };

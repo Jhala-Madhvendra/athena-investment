@@ -28,8 +28,22 @@ const portfolioScenarioRoutes = require("./portfolio/portfolio.scenario.routes")
 const alertRoutes = require("./alerts/alert.routes");
 const earningsRoutes = require("./earnings/earnings.routes");
 const industryRoutes = require("./industry/industry.routes");
+const screenerRoutes = require("./screener/screener.routes");
+const simulationRoutes = require("./simulation/simulation.routes");
+const snapshotRoutes = require("./snapshots/snapshot.routes");
+const portfolioAccountRoutes = require("./portfolio/portfolioAccount.routes");
+const dividendRoutes = require("./portfolio/dividend.routes");
+const portfolioDigestRoutes = require("./ai/portfolioDigest.routes");
+const { startScheduledJobs } = require("./jobs/scheduler");
 
 connectDB();
+
+// Cron jobs + the Telegram bot poller - never started during Jest runs
+// (mirrors middleware/rateLimit.js's skipInTest), so tests never leave
+// real timers running.
+if (env.nodeEnv !== "test") {
+    startScheduledJobs();
+}
 
 app.use(helmet());
 
@@ -86,6 +100,12 @@ app.use("/api/portfolio/scenarios", portfolioScenarioRoutes);
 app.use("/api/alerts", alertRoutes);
 app.use("/api/earnings", earningsRoutes);
 app.use("/api/industry", industryRoutes);
+app.use("/api/screener", screenerRoutes);
+app.use("/api/simulation", simulationRoutes);
+app.use("/api/snapshots", snapshotRoutes);
+app.use("/api/portfolio-accounts", portfolioAccountRoutes);
+app.use("/api/dividends", dividendRoutes);
+app.use("/api/ai/digest", portfolioDigestRoutes);
 
 app.use((err, req, res, next) => {
     const fallbackStatusCode = err.message === "Not allowed by CORS" ? 403 : 500;

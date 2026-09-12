@@ -66,8 +66,8 @@ describe('Valuation - form validation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Calculate DCF Valuation/i }));
 
     expect(await screen.findByText(/Pre-Tax Cost of Debt is required/i)).toBeInTheDocument();
-    // Only the defaults GET should have fired - no POSTs
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    // Only the defaults GET and SavedScenariosSection's own saved-scenarios GET should have fired - no POSTs
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 });
 

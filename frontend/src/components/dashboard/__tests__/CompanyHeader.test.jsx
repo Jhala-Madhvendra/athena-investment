@@ -28,4 +28,14 @@ describe('CompanyHeader', () => {
     expect(() => render(<CompanyHeader company={null} quote={null} />)).not.toThrow();
     expect(screen.getByText('—')).toBeInTheDocument();
   });
+
+  it('shows an "as of" staleness caption when the quote carries an asOf timestamp', () => {
+    render(<CompanyHeader company={companyFixture.company} quote={{ ...quoteFixture, asOf: '2026-08-31T18:41:00.000Z' }} />);
+    expect(screen.getByText(/As of .* · quotes may be delayed/)).toBeInTheDocument();
+  });
+
+  it('renders no staleness caption when the quote has no asOf timestamp', () => {
+    render(<CompanyHeader company={companyFixture.company} quote={quoteFixture} />);
+    expect(screen.queryByText(/quotes may be delayed/)).not.toBeInTheDocument();
+  });
 });

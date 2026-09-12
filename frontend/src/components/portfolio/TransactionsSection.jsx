@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, X, History } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, History, Upload } from 'lucide-react'
 import Card from '../ui/Card'
 import Skeleton from '../ui/Skeleton'
 import ErrorState from '../ui/ErrorState'
 import EmptyState from '../ui/EmptyState'
 import SectionHeader from '../ui/SectionHeader'
 import Badge from '../ui/Badge'
+import TransactionImportModal from './TransactionImportModal'
 import { fetchJson } from '../../lib/api'
 
 const formatCurrency = (value, currency) => {
@@ -36,7 +37,7 @@ const formatHoldings = (holdings) => {
  * `onTransactionsChanged` tells the parent page to re-fetch analytics after
  * any write, since the server-side cache key already accounts for it.
  */
-function TransactionsSection({ onTransactionsChanged }) {
+function TransactionsSection({ portfolioId, onTransactionsChanged }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [transactions, setTransactions] = useState([])
@@ -55,11 +56,14 @@ function TransactionsSection({ onTransactionsChanged }) {
   const [deletingId, setDeletingId] = useState(null)
   const [rowError, setRowError] = useState('')
 
+  const [importOpen, setImportOpen] = useState(false)
+
   const loadTransactions = async (signal) => {
+    if (!portfolioId) return
     setLoading(true)
     setError('')
     try {
-      const data = await fetchJson('/api/portfolio/transactions', undefined, signal)
+      const data = await fetchJson(`/api/portfolio/transactions?portfolioId=${encodeURIComponent(portfolioId)}`, undefined, signal)
       setTransactions(data.transactions)
     } catch (requestError) {
       if (requestError.name === 'AbortError') return
@@ -70,17 +74,19 @@ function TransactionsSection({ onTransactionsChanged }) {
   }
 
   useEffect(() => {
+    if (!portfolioId) return undefined
     const controller = new AbortController()
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetch, same pattern as Portfolio.jsx's loadPortfolio effect (loading state must start true before the request resolves)
     loadTransactions(controller.signal)
     return () => controller.abort()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-fetch whenever the selected account changes
+  }, [portfolioId])
 
   const loadTimeline = async () => {
     setTimelineLoading(true)
     setTimelineError('')
     try {
-      const data = await fetchJson('/api/portfolio/holdings/history')
+      const data = await fetchJson(`/api/portfolio/holdings/history?portfolioId=${encodeURIComponent(portfolioId)}`)
       setTimeline(data)
     } catch (requestError) {
       setTimelineError(requestError.message)
@@ -145,7 +151,7 @@ function TransactionsSection({ onTransactionsChanged }) {
       } else {
         await fetchJson('/api/portfolio/transactions', {
           method: 'POST',
-          body: JSON.stringify({ ...body, ticker: formValues.ticker }),
+          body: JSON.stringify({ ...body, ticker: formValues.ticker, portfolioId }),
         })
       }
       closeForm()
@@ -182,6 +188,24 @@ function TransactionsSection({ onTransactionsChanged }) {
     </button>
   )
 
+  const importButton = (
+    <button
+      type="button"
+      onClick={() => setImportOpen(true)}
+      className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken"
+    >
+      <Upload className="h-4 w-4" aria-hidden="true" />
+      Import CSV
+    </button>
+  )
+
+  const headerActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      {importButton}
+      {addButton}
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -205,7 +229,7 @@ function TransactionsSection({ onTransactionsChanged }) {
       <SectionHeader
         title="Transaction History"
         description="Buys and sells that let Athena reconstruct what you actually held, and when - independent of the Holdings list above."
-        action={addButton}
+        action={headerActions}
       />
 
       {transactions.length === 0 ? (
@@ -213,7 +237,7 @@ function TransactionsSection({ onTransactionsChanged }) {
           icon={History}
           title="No transactions recorded"
           message="Record your buys and sells to unlock transaction-aware historical analytics below, instead of an estimate based on today's mix. Holdings above are unaffected either way."
-          action={addButton}
+          action={headerActions}
         />
       ) : (
         <>
@@ -426,6 +450,14 @@ function TransactionsSection({ onTransactionsChanged }) {
             </form>
           </div>
         </div>
+      )}
+
+      {importOpen && (
+        <TransactionImportModal
+          portfolioId={portfolioId}
+          onClose={() => setImportOpen(false)}
+          onImported={refreshAfterChange}
+        />
       )}
     </div>
   )

@@ -7,12 +7,26 @@ jest.mock("../portfolio.scenario.service", () => ({
     getPresets: jest.fn(),
 }));
 jest.mock("../portfolio.scenario.explanation.service", () => ({ explainScenario: jest.fn() }));
+jest.mock("../savedScenario.service", () => ({
+    createSavedScenario: jest.fn(),
+    listSavedScenarios: jest.fn(),
+    deleteSavedScenario: jest.fn(),
+    SavedScenarioNotFoundError: class SavedScenarioNotFoundError extends Error {
+        constructor() {
+            super("Saved scenario not found.");
+            this.statusCode = 404;
+        }
+    },
+}));
 jest.mock("../../identity/identity.service", () => ({ resolveUserIdByToken: jest.fn() }));
 
 const scenarioService = require("../portfolio.scenario.service");
 const explanationService = require("../portfolio.scenario.explanation.service");
+const savedScenarioService = require("../savedScenario.service");
 const identityService = require("../../identity/identity.service");
 const scenarioRoutes = require("../portfolio.scenario.routes");
+
+const VALID_ID = "507f1f77bcf86cd799439011";
 
 const app = express();
 app.use(express.json());
@@ -192,5 +206,88 @@ describe("POST /explain", () => {
             .send(validExplainBody());
 
         expect(response.status).toBe(502);
+    });
+});
+
+describe("POST /saved", () => {
+    beforeEach(() => {
+        identityService.resolveUserIdByToken.mockResolvedValue("userA");
+    });
+
+    it("rejects requests with no Authorization header", async () => {
+        const response = await request(app)
+            .post("/api/portfolio/scenarios/saved")
+            .send({ rules: [validRule], alertThresholdPercent: -15 });
+
+        expect(response.status).toBe(401);
+        expect(savedScenarioService.createSavedScenario).not.toHaveBeenCalled();
+    });
+
+    it("rejects a missing/invalid alertThresholdPercent before calling the service", async () => {
+        const response = await request(app)
+            .post("/api/portfolio/scenarios/saved")
+            .set("Authorization", "Bearer token-a")
+            .send({ rules: [validRule], alertThresholdPercent: 5 });
+
+        expect(response.status).toBe(400);
+        expect(savedScenarioService.createSavedScenario).not.toHaveBeenCalled();
+    });
+
+    it("creates a saved scenario, scoped to the caller", async () => {
+        savedScenarioService.createSavedScenario.mockResolvedValue({ _id: "s1", name: "Custom Scenario" });
+
+        const response = await request(app)
+            .post("/api/portfolio/scenarios/saved")
+            .set("Authorization", "Bearer token-a")
+            .send({ rules: [validRule], alertThresholdPercent: -15 });
+
+        expect(response.status).toBe(201);
+        expect(savedScenarioService.createSavedScenario).toHaveBeenCalledWith(
+            "userA",
+            expect.objectContaining({ alertThresholdPercent: -15 })
+        );
+    });
+});
+
+describe("GET /saved", () => {
+    it("scopes the list to the caller's own userId", async () => {
+        identityService.resolveUserIdByToken.mockResolvedValue("userA");
+        savedScenarioService.listSavedScenarios.mockResolvedValue([{ _id: "s1" }]);
+
+        const response = await request(app).get("/api/portfolio/scenarios/saved").set("Authorization", "Bearer token-a");
+
+        expect(response.status).toBe(200);
+        expect(savedScenarioService.listSavedScenarios).toHaveBeenCalledWith("userA");
+        expect(response.body.savedScenarios).toHaveLength(1);
+    });
+});
+
+describe("DELETE /saved/:id", () => {
+    beforeEach(() => {
+        identityService.resolveUserIdByToken.mockResolvedValue("userA");
+    });
+
+    it("returns 400 for a malformed id without calling the service", async () => {
+        const response = await request(app).delete("/api/portfolio/scenarios/saved/not-an-id").set("Authorization", "Bearer token-a");
+
+        expect(response.status).toBe(400);
+        expect(savedScenarioService.deleteSavedScenario).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 when the saved scenario doesn't belong to the caller", async () => {
+        savedScenarioService.deleteSavedScenario.mockRejectedValue(new savedScenarioService.SavedScenarioNotFoundError());
+
+        const response = await request(app).delete(`/api/portfolio/scenarios/saved/${VALID_ID}`).set("Authorization", "Bearer token-a");
+
+        expect(response.status).toBe(404);
+    });
+
+    it("deletes when owned by the caller", async () => {
+        savedScenarioService.deleteSavedScenario.mockResolvedValue({ _id: VALID_ID });
+
+        const response = await request(app).delete(`/api/portfolio/scenarios/saved/${VALID_ID}`).set("Authorization", "Bearer token-a");
+
+        expect(response.status).toBe(200);
+        expect(savedScenarioService.deleteSavedScenario).toHaveBeenCalledWith("userA", VALID_ID);
     });
 });

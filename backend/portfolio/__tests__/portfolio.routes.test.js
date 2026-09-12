@@ -26,11 +26,13 @@ jest.mock("../portfolio.service", () => ({
 jest.mock("../../services/company.service", () => ({ resolveTicker: jest.fn() }));
 jest.mock("../../identity/identity.service", () => ({ resolveUserIdByToken: jest.fn() }));
 jest.mock("../portfolioHistory.service", () => ({ getHoldingsAt: jest.fn(), getHoldingsTimeline: jest.fn() }));
+jest.mock("../taxLot.service", () => ({ getRealizedGains: jest.fn(), getOpenLots: jest.fn() }));
 
 const portfolioService = require("../portfolio.service");
 const companyService = require("../../services/company.service");
 const identityService = require("../../identity/identity.service");
 const portfolioHistoryService = require("../portfolioHistory.service");
+const taxLotService = require("../taxLot.service");
 const portfolioRoutes = require("../portfolio.routes");
 
 const app = express();
@@ -62,8 +64,8 @@ describe("user isolation / ownership", () => {
         await request(app).get("/api/portfolio").set("Authorization", "Bearer token-a");
         await request(app).get("/api/portfolio").set("Authorization", "Bearer token-b");
 
-        expect(portfolioService.getPortfolio).toHaveBeenNthCalledWith(1, "userA");
-        expect(portfolioService.getPortfolio).toHaveBeenNthCalledWith(2, "userB");
+        expect(portfolioService.getPortfolio).toHaveBeenNthCalledWith(1, "userA", null);
+        expect(portfolioService.getPortfolio).toHaveBeenNthCalledWith(2, "userB", null);
     });
 
     it("passes the caller's own userId (never a client-supplied one) when updating a holding", async () => {
@@ -169,7 +171,7 @@ describe("GET /api/portfolio/holdings (reconstructed, as-of a date)", () => {
 
         expect(response.status).toBe(200);
         expect(response.body.holdings).toEqual({ AAPL: 10 });
-        expect(portfolioHistoryService.getHoldingsAt).toHaveBeenCalledWith("user1", "2025-06-01");
+        expect(portfolioHistoryService.getHoldingsAt).toHaveBeenCalledWith("user1", "2025-06-01", null);
     });
 });
 
@@ -184,7 +186,39 @@ describe("GET /api/portfolio/holdings/history", () => {
         const response = await request(app).get("/api/portfolio/holdings/history").set("Authorization", "Bearer good-token");
 
         expect(response.status).toBe(200);
-        expect(portfolioHistoryService.getHoldingsTimeline).toHaveBeenCalledWith("user1");
+        expect(portfolioHistoryService.getHoldingsTimeline).toHaveBeenCalledWith("user1", null);
+    });
+});
+
+describe("GET /api/portfolio/tax-lots/realized and /open", () => {
+    beforeEach(() => {
+        identityService.resolveUserIdByToken.mockResolvedValue("user1");
+    });
+
+    it("rejects requests with no Authorization header", async () => {
+        const realized = await request(app).get("/api/portfolio/tax-lots/realized");
+        const open = await request(app).get("/api/portfolio/tax-lots/open");
+
+        expect(realized.status).toBe(401);
+        expect(open.status).toBe(401);
+    });
+
+    it("scopes realized-gains lookups to the caller's own userId", async () => {
+        taxLotService.getRealizedGains.mockResolvedValue({ realizedLots: [], summary: {} });
+
+        const response = await request(app).get("/api/portfolio/tax-lots/realized").set("Authorization", "Bearer good-token");
+
+        expect(response.status).toBe(200);
+        expect(taxLotService.getRealizedGains).toHaveBeenCalledWith("user1", expect.objectContaining({}));
+    });
+
+    it("scopes open-lots lookups to the caller's own userId", async () => {
+        taxLotService.getOpenLots.mockResolvedValue({ openLots: [] });
+
+        const response = await request(app).get("/api/portfolio/tax-lots/open").set("Authorization", "Bearer good-token");
+
+        expect(response.status).toBe(200);
+        expect(taxLotService.getOpenLots).toHaveBeenCalledWith("user1", expect.objectContaining({}));
     });
 });
 

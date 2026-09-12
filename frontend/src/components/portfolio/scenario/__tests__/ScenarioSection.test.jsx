@@ -57,11 +57,12 @@ const runResultFixture = (overrides = {}) => ({
   ...overrides,
 })
 
-const mockScenarioApi = ({ presets = presetsFixture, run, compare } = {}) => {
+const mockScenarioApi = ({ presets = presetsFixture, run, compare, saved = { savedScenarios: [] } } = {}) => {
   fetchJson.mockReset()
   fetchJson.mockImplementation((path, options = {}) => {
     const method = options.method || 'GET'
     if (path === '/api/portfolio/scenarios/presets') return Promise.resolve(presets)
+    if (path === '/api/portfolio/scenarios/saved' && method === 'GET') return Promise.resolve(saved)
     if (path === '/api/portfolio/scenarios/run' && method === 'POST') {
       if (run?.__error) return Promise.reject(new Error(run.message))
       return Promise.resolve(typeof run === 'function' ? run(JSON.parse(options.body)) : run || runResultFixture())
@@ -216,7 +217,7 @@ describe('ScenarioSection - comparison flow', () => {
     // Load Bear preset (different name) and add it too.
     fireEvent.click(screen.getByText('Bear Case'))
     fireEvent.click(screen.getByRole('button', { name: /run scenario/i }))
-    await waitFor(() => expect(fetchJson).toHaveBeenCalledTimes(3)) // presets + 2 runs
+    await waitFor(() => expect(fetchJson).toHaveBeenCalledTimes(4)) // presets + saved-scenarios list (SavedScenariosWatchlist) + 2 runs
     fireEvent.click(screen.getByRole('button', { name: /add to comparison/i }))
 
     const compareButton = await screen.findByRole('button', { name: /^compare$/i })

@@ -7,6 +7,15 @@ jest.mock("../ai.promptBuilder", () => ({ buildPrompt: jest.fn() }));
 jest.mock("../ai.responseParser", () => ({ parseReportResponse: jest.fn() }));
 jest.mock("../ai.validator", () => ({ validateReportSchema: jest.fn() }));
 jest.mock("../providers/llmProvider.registry", () => ({ generateReport: jest.fn() }));
+jest.mock("../aiQuota.service", () => ({
+    consumeIfAvailable: jest.fn(),
+    QuotaExceededError: class QuotaExceededError extends Error {
+        constructor(limit) {
+            super(`You've reached your free AI report limit for this month (${limit}).`);
+            this.statusCode = 429;
+        }
+    },
+}));
 
 const AiResearchReport = require("../ai.model");
 const contextBuilder = require("../ai.contextBuilder");
@@ -14,6 +23,7 @@ const promptBuilder = require("../ai.promptBuilder");
 const responseParser = require("../ai.responseParser");
 const validator = require("../ai.validator");
 const llmProvider = require("../providers/llmProvider.registry");
+const aiQuotaService = require("../aiQuota.service");
 const env = require("../../config/env");
 
 const { getOrGenerateReport, getPersistedReport, InsufficientContextError, MalformedLLMResponseError } = require("../ai.service");
@@ -200,6 +210,60 @@ describe("getOrGenerateReport - retry behavior", () => {
         await expect(getOrGenerateReport("AAPL")).rejects.toThrow("Too many requests.");
         expect(llmProvider.generateReport).toHaveBeenCalledTimes(1);
         expect(AiResearchReport.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+});
+
+describe("getOrGenerateReport - quota", () => {
+    it("never touches the quota service on a cache hit", async () => {
+        AiResearchReport.findOne.mockResolvedValue({ ticker: "AAPL", report: SANITIZED_REPORT });
+
+        await getOrGenerateReport("AAPL", { userId: "user1" });
+
+        expect(aiQuotaService.consumeIfAvailable).not.toHaveBeenCalled();
+    });
+
+    it("skips the quota check entirely when no userId is given (e.g. a direct call with no request context)", async () => {
+        AiResearchReport.findOne.mockResolvedValue(null);
+        mockHappyPath();
+
+        await getOrGenerateReport("AAPL");
+
+        expect(aiQuotaService.consumeIfAvailable).not.toHaveBeenCalled();
+        expect(llmProvider.generateReport).toHaveBeenCalled();
+    });
+
+    it("consumes quota before calling the LLM when a userId is given and quota is available", async () => {
+        AiResearchReport.findOne.mockResolvedValue(null);
+        mockHappyPath();
+        aiQuotaService.consumeIfAvailable.mockResolvedValue({ allowed: true, used: 1, limit: 5 });
+
+        await getOrGenerateReport("AAPL", { userId: "user1" });
+
+        expect(aiQuotaService.consumeIfAvailable).toHaveBeenCalledWith("user1");
+        expect(llmProvider.generateReport).toHaveBeenCalled();
+    });
+
+    it("throws QuotaExceededError and never calls the LLM when quota is exhausted", async () => {
+        AiResearchReport.findOne.mockResolvedValue(null);
+        contextBuilder.buildResearchContext.mockResolvedValue({
+            context: AVAILABLE_CONTEXT,
+            dataFreshness: {},
+        });
+        contextBuilder.buildEvidenceAllowList.mockReturnValue([]);
+        aiQuotaService.consumeIfAvailable.mockResolvedValue({ allowed: false, used: 5, limit: 5 });
+
+        await expect(getOrGenerateReport("AAPL", { userId: "user1" })).rejects.toThrow(aiQuotaService.QuotaExceededError);
+        expect(llmProvider.generateReport).not.toHaveBeenCalled();
+    });
+
+    it("enforces quota on regenerate:true just like a fresh generation", async () => {
+        mockHappyPath();
+        aiQuotaService.consumeIfAvailable.mockResolvedValue({ allowed: false, used: 5, limit: 5 });
+
+        await expect(getOrGenerateReport("AAPL", { regenerate: true, userId: "user1" })).rejects.toThrow(
+            aiQuotaService.QuotaExceededError
+        );
+        expect(llmProvider.generateReport).not.toHaveBeenCalled();
     });
 });
 

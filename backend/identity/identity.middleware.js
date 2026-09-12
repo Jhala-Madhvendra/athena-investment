@@ -3,9 +3,11 @@ const identityService = require("./identity.service");
 const BEARER_PATTERN = /^Bearer\s+(.+)$/i;
 
 /**
- * Resolves the caller's identity token to req.userId. Mounted only on the
- * Watchlist/Portfolio routers - every other route in the app stays
- * unauthenticated exactly as before this sprint.
+ * Resolves the caller's identity token to req.userId. Mounted on every
+ * identity-scoped router (Watchlist, Portfolio and its sub-routers,
+ * Dividends, Alerts, Simulation, Snapshots, Valuation Scenarios) - routes
+ * with no user-owned data (company/financials/valuation/ai/news/etc.) stay
+ * unauthenticated.
  */
 const requireIdentity = async (req, res, next) => {
     try {
@@ -29,4 +31,4 @@ const requireIdentity = async (req, res, next) => {
     }
 };
 
-module.exports = { requireIdentity };
+module.exports = { requireIdentity, BEARER_PATTERN };

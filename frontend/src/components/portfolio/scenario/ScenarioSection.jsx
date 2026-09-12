@@ -6,6 +6,8 @@ import ErrorState from '../../ui/ErrorState'
 import ScenarioBuilder from './ScenarioBuilder'
 import ScenarioResult from './ScenarioResult'
 import ScenarioComparisonView from './ScenarioComparisonView'
+import SaveScenarioButton from './SaveScenarioButton'
+import SavedScenariosWatchlist from './SavedScenariosWatchlist'
 import { fetchJson } from '../../../lib/api'
 
 /**
@@ -34,6 +36,8 @@ function ScenarioSection({ holdingsCount }) {
   const [compareResult, setCompareResult] = useState(null)
   const [compareError, setCompareError] = useState('')
   const [comparing, setComparing] = useState(false)
+
+  const [watchRefreshKey, setWatchRefreshKey] = useState(0)
 
   useEffect(() => {
     if (holdingsCount === 0) return undefined
@@ -159,6 +163,19 @@ function ScenarioSection({ holdingsCount }) {
         onRunSensitivity={(sensitivity) => runScenario({ sensitivity })}
         sensitivityLoading={sensitivityLoading}
       />
+
+      {result && (
+        <SaveScenarioButton
+          name={name}
+          rules={rules}
+          benchmark={benchmark.trim()}
+          window={window_}
+          defaultThresholdPercent={result.percentageChange}
+          onSaved={() => setWatchRefreshKey((k) => k + 1)}
+        />
+      )}
+
+      <SavedScenariosWatchlist refreshKey={watchRefreshKey} />
 
       {pendingScenarios.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-sunken/50 px-4 py-3 text-sm">

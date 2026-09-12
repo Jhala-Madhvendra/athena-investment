@@ -185,9 +185,17 @@ export function mockIndustryFetch(responses) {
   });
 }
 
+/**
+ * `savedScenarios` covers SavedScenariosSection's GET /dcf/saved, fired
+ * unconditionally on mount alongside /dcf/defaults - defaults to an empty
+ * list when not provided so existing callers that don't care about this
+ * feature don't need to opt in explicitly. Checked before the generic
+ * `/dcf` case, same as /dcf/scenarios and /dcf/sensitivity above.
+ */
 export function mockValuationFetch(responses) {
   const resolveFor = (url) => {
     if (url.includes('/dcf/defaults')) return responses.defaults;
+    if (url.includes('/dcf/saved')) return responses.savedScenarios ?? { scenarios: [] };
     if (url.includes('/dcf/scenarios')) return responses.scenarios;
     if (url.includes('/dcf/sensitivity')) return responses.sensitivity;
     if (url.includes('/dcf')) return responses.dcf;

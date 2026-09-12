@@ -6,15 +6,25 @@ jest.mock("../holding.model", () => ({
 }));
 jest.mock("../../market/market.service", () => ({ getCurrentMarketData: jest.fn() }));
 jest.mock("../../market/providers/fxRate.provider", () => ({ getRateToUSD: jest.fn() }));
+jest.mock("../portfolioAccount.service", () => ({
+    resolveWritablePortfolioId: jest.fn(),
+    ensureLegacyDataAssigned: jest.fn(),
+}));
+jest.mock("../dividend.service", () => ({ getTotalDividendIncome: jest.fn() }));
 
 const Holding = require("../holding.model");
 const marketService = require("../../market/market.service");
 const fxRateProvider = require("../../market/providers/fxRate.provider");
+const portfolioAccountService = require("../portfolioAccount.service");
+const dividendService = require("../dividend.service");
 const portfolioService = require("../portfolio.service");
 
 beforeEach(() => {
     // Default every currency to USD parity unless a test overrides it - most existing tests aren't exercising FX behavior at all.
     fxRateProvider.getRateToUSD.mockResolvedValue(1);
+    portfolioAccountService.resolveWritablePortfolioId.mockResolvedValue("default-account");
+    portfolioAccountService.ensureLegacyDataAssigned.mockResolvedValue(undefined);
+    dividendService.getTotalDividendIncome.mockResolvedValue(0);
 });
 
 afterEach(() => {
@@ -40,8 +50,32 @@ describe("addHolding", () => {
         });
 
         expect(Holding.create).toHaveBeenCalledWith(
-            expect.objectContaining({ userId: "user1", ticker: "AAPL", shares: 10, averagePurchasePrice: 100 })
+            expect.objectContaining({ userId: "user1", ticker: "AAPL", shares: 10, averagePurchasePrice: 100, portfolioId: "default-account" })
         );
+    });
+
+    it("resolves the default account when no portfolioId is given, and stamps the resolved id", async () => {
+        Holding.create.mockResolvedValue({ _id: "h1" });
+
+        await portfolioService.addHolding("user1", { ticker: "AAPL", shares: 10, averagePurchasePrice: 100, purchaseDate: "2025-01-01" });
+
+        expect(portfolioAccountService.resolveWritablePortfolioId).toHaveBeenCalledWith("user1", undefined);
+    });
+
+    it("passes an explicit portfolioId through for ownership resolution", async () => {
+        Holding.create.mockResolvedValue({ _id: "h1" });
+        portfolioAccountService.resolveWritablePortfolioId.mockResolvedValue("acct-2");
+
+        await portfolioService.addHolding("user1", {
+            ticker: "AAPL",
+            shares: 10,
+            averagePurchasePrice: 100,
+            purchaseDate: "2025-01-01",
+            portfolioId: "acct-2",
+        });
+
+        expect(portfolioAccountService.resolveWritablePortfolioId).toHaveBeenCalledWith("user1", "acct-2");
+        expect(Holding.create).toHaveBeenCalledWith(expect.objectContaining({ portfolioId: "acct-2" }));
     });
 });
 
@@ -202,6 +236,41 @@ describe("getPortfolio", () => {
             const tcsHolding = result.holdings.find((h) => h.ticker === "TCS.BO");
             expect(tcsHolding.currentValue).toBe(9260); // still shown natively
             expect(tcsHolding.weightPercent).toBeNull(); // excluded from weight, not assigned 0
+        });
+    });
+
+    describe("portfolioId scoping", () => {
+        it("aggregates across every account when portfolioId is omitted", async () => {
+            Holding.find.mockReturnValue(chainableFind([]));
+
+            await portfolioService.getPortfolio("user1");
+
+            expect(Holding.find).toHaveBeenCalledWith({ userId: "user1" });
+        });
+
+        it("scopes to one account when portfolioId is given", async () => {
+            Holding.find.mockReturnValue(chainableFind([]));
+
+            await portfolioService.getPortfolio("user1", "acct-2");
+
+            expect(Holding.find).toHaveBeenCalledWith({ userId: "user1", portfolioId: "acct-2" });
+        });
+    });
+
+    describe("total return including dividends", () => {
+        it("folds dividend income into a totalReturnIncludingDividends figure alongside the price-only totals", async () => {
+            Holding.find.mockReturnValue(
+                chainableFind([{ _id: "h1", ticker: "AAPL", shares: 10, averagePurchasePrice: 100 }])
+            );
+            marketService.getCurrentMarketData.mockResolvedValue({ price: { current: 120 }, currency: "USD" });
+            dividendService.getTotalDividendIncome.mockResolvedValue(50);
+
+            const result = await portfolioService.getPortfolio("user1");
+
+            // Price gain: (120-100)*10 = 200. Plus $50 dividend income = 250.
+            expect(result.summary.totalGainLoss).toBe(200);
+            expect(result.summary.totalDividendIncome).toBe(50);
+            expect(result.summary.totalReturnIncludingDividends).toBe(250);
         });
     });
 });

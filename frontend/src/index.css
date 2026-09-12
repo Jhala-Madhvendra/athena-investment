@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Portfolio's PDF/print button (window.print()) needs landscape - the
+   Holdings table has 8 data columns of currency figures, which get clipped
+   at the right edge of a portrait page since a scrollable overflow-x-auto
+   container has no page to scroll during print. */
+@page {
+  size: landscape;
+  margin: 12mm;
+}
+
 @theme {
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 

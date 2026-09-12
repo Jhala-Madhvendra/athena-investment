@@ -67,6 +67,30 @@ describe("mapYahooQuote", () => {
         expect(mapYahooQuote({ quoteSummary: { result: [] } }, "ZZZZ")).toBeNull();
         expect(mapYahooQuote({}, "ZZZZ")).toBeNull();
     });
+
+    it("prefers Yahoo's own regularMarketTime for asOf, over Athena's fetch time", () => {
+        const response = {
+            quoteSummary: {
+                result: [{ price: { regularMarketTime: { raw: 1700000000 } }, summaryDetail: {}, defaultKeyStatistics: {} }],
+            },
+        };
+
+        const quote = mapYahooQuote(response, "AAPL");
+
+        expect(quote.asOf).toBe(new Date(1700000000 * 1000).toISOString());
+    });
+
+    it("falls back to the current time for asOf when Yahoo didn't supply regularMarketTime", () => {
+        const response = { quoteSummary: { result: [{ price: {}, summaryDetail: {}, defaultKeyStatistics: {} }] } };
+
+        const before = Date.now();
+        const quote = mapYahooQuote(response, "AAPL");
+        const after = Date.now();
+
+        const asOfMs = new Date(quote.asOf).getTime();
+        expect(asOfMs).toBeGreaterThanOrEqual(before);
+        expect(asOfMs).toBeLessThanOrEqual(after);
+    });
 });
 
 describe("mapYahooHistoricalPrices", () => {

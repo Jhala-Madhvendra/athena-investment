@@ -10,10 +10,17 @@ jest.mock("../earnings.service", () => ({
         }
     },
 }));
+jest.mock("../earnings.aiService", () => ({
+    getPersistedSummary: jest.fn(),
+    getOrGenerateSummary: jest.fn(),
+}));
 jest.mock("../../services/company.service", () => ({ resolveTicker: jest.fn() }));
+jest.mock("../../identity/identity.service", () => ({ resolveUserIdByToken: jest.fn() }));
 
 const earningsService = require("../earnings.service");
+const earningsAiService = require("../earnings.aiService");
 const companyService = require("../../services/company.service");
+const identityService = require("../../identity/identity.service");
 const earningsRoutes = require("../earnings.routes");
 
 const app = express();
@@ -61,5 +68,77 @@ describe("GET /api/earnings/:ticker", () => {
         const response = await request(app).get("/api/earnings/AAPL");
 
         expect(response.status).toBe(500);
+    });
+});
+
+describe("GET /api/earnings/:ticker/summary", () => {
+    it("returns null (no Authorization header required) when no summary has been generated yet", async () => {
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+        earningsAiService.getPersistedSummary.mockResolvedValue(null);
+
+        const response = await request(app).get("/api/earnings/AAPL/summary");
+
+        expect(response.status).toBe(200);
+        expect(response.body).toBeNull();
+        expect(earningsAiService.getOrGenerateSummary).not.toHaveBeenCalled();
+    });
+
+    it("returns the persisted summary when one exists", async () => {
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+        earningsAiService.getPersistedSummary.mockResolvedValue({ ticker: "AAPL", narrative: "ok" });
+
+        const response = await request(app).get("/api/earnings/aapl/summary");
+
+        expect(response.status).toBe(200);
+        expect(response.body.narrative).toBe("ok");
+    });
+});
+
+describe("POST /api/earnings/:ticker/summary", () => {
+    it("rejects a request with no Authorization header", async () => {
+        const response = await request(app).post("/api/earnings/AAPL/summary").send({});
+
+        expect(response.status).toBe(401);
+        expect(earningsAiService.getOrGenerateSummary).not.toHaveBeenCalled();
+    });
+
+    it("generates and returns a summary, scoped to the caller's own userId", async () => {
+        identityService.resolveUserIdByToken.mockResolvedValue("user1");
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+        earningsAiService.getOrGenerateSummary.mockResolvedValue({ ticker: "AAPL", narrative: "ok" });
+
+        const response = await request(app)
+            .post("/api/earnings/aapl/summary")
+            .set("Authorization", "Bearer token-a")
+            .send({});
+
+        expect(response.status).toBe(200);
+        expect(response.body.narrative).toBe("ok");
+        expect(earningsAiService.getOrGenerateSummary).toHaveBeenCalledWith("AAPL", { regenerate: false, userId: "user1" });
+    });
+
+    it("passes regenerate:true through to the service", async () => {
+        identityService.resolveUserIdByToken.mockResolvedValue("user1");
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+        earningsAiService.getOrGenerateSummary.mockResolvedValue({ ticker: "AAPL", narrative: "ok" });
+
+        await request(app).post("/api/earnings/AAPL/summary").set("Authorization", "Bearer token-a").send({ regenerate: true });
+
+        expect(earningsAiService.getOrGenerateSummary).toHaveBeenCalledWith("AAPL", { regenerate: true, userId: "user1" });
+    });
+
+    it("maps QuotaExceededError's statusCode (429) through sendServiceError", async () => {
+        identityService.resolveUserIdByToken.mockResolvedValue("user1");
+        companyService.resolveTicker.mockResolvedValue("AAPL");
+        const error = new Error("You've reached your free AI report limit for this month (5).");
+        error.statusCode = 429;
+        earningsAiService.getOrGenerateSummary.mockRejectedValue(error);
+
+        const response = await request(app)
+            .post("/api/earnings/AAPL/summary")
+            .set("Authorization", "Bearer token-a")
+            .send({});
+
+        expect(response.status).toBe(429);
     });
 });

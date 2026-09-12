@@ -7,22 +7,7 @@ import ErrorState from './ui/ErrorState';
 import SectionHeader from './ui/SectionHeader';
 import ReportSection from './ai/ReportSection';
 import ReportBulletList from './ai/ReportBulletList';
-
-const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-const fetchJson = async (url, options, signal) => {
-  const response = await fetch(url, { ...options, signal });
-  const data = await response.json();
-
-  if (!response.ok) {
-    const error = new Error(data.message || 'Request failed.');
-    error.errors = data.errors;
-    error.status = response.status;
-    throw error;
-  }
-
-  return data;
-};
+import { fetchJson } from '../lib/api';
 
 /** "4.5" (a percent, as a human would type it) -> 0.045 (the decimal the API expects). Blank/invalid input is omitted, letting the backend fall back to its own illustrative estimate. */
 const parseCostOfDebtPercent = (raw) => {
@@ -68,6 +53,21 @@ function AIResearch() {
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState('');
   const [costOfDebtInput, setCostOfDebtInput] = useState('');
+  const [usage, setUsage] = useState(null);
+
+  /** Shared across AI Research Reports and Earnings AI Summaries - see backend/ai/aiQuota.service.js. Best-effort: a failed usage lookup just hides the badge, it never blocks Generate/Regenerate. */
+  const loadUsage = async () => {
+    try {
+      const data = await fetchJson('/api/ai/usage');
+      setUsage(data);
+    } catch {
+      // Non-critical - the badge just doesn't render.
+    }
+  };
+
+  useEffect(() => {
+    loadUsage();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -78,11 +78,7 @@ function AIResearch() {
       setReport(null);
 
       try {
-        const data = await fetchJson(
-          `${apiBaseUrl}/api/ai/${encodeURIComponent(ticker)}/research-report`,
-          undefined,
-          controller.signal
-        );
+        const data = await fetchJson(`/api/ai/${encodeURIComponent(ticker)}/research-report`, undefined, controller.signal);
         setReport(data);
       } catch (requestError) {
         if (requestError.name === 'AbortError') return;
@@ -111,12 +107,12 @@ function AIResearch() {
     }
 
     try {
-      const data = await fetchJson(`${apiBaseUrl}/api/ai/${encodeURIComponent(ticker)}/research-report`, {
+      const data = await fetchJson(`/api/ai/${encodeURIComponent(ticker)}/research-report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       setReport(data);
+      await loadUsage();
     } catch (requestError) {
       setGenerateError(requestError.errors?.join(' ') || requestError.message);
     } finally {
@@ -165,6 +161,13 @@ function AIResearch() {
     );
   }
 
+  const usageBadge = usage && (
+    <p className="text-xs text-ink-muted">
+      {usage.used} of {usage.limit} AI reports used this month
+      {usage.remaining === 0 ? ' - limit reached, resets next month.' : '.'}
+    </p>
+  );
+
   if (!report) {
     return (
       <div className="space-y-6">
@@ -191,6 +194,7 @@ function AIResearch() {
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               {generating ? 'Generating…' : 'Generate Research Report'}
             </button>
+            {usageBadge}
             {generateError && <p className="max-w-md text-sm text-critical">{generateError}</p>}
           </div>
         </Card>
@@ -221,6 +225,7 @@ function AIResearch() {
       />
 
       {costOfDebtField}
+      {usageBadge}
       {generateError && (
         <p className="rounded-lg border border-critical/20 bg-critical/5 px-3 py-2 text-sm text-critical">{generateError}</p>
       )}

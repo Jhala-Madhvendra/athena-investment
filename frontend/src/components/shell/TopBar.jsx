@@ -29,7 +29,7 @@ function TopBar({ onOpenNav }) {
   const globalLabel = !ticker ? GLOBAL_PAGE_LABELS[location.pathname] : null;
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface-raised/95 px-4 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface-raised/95 px-4 backdrop-blur sm:px-6 lg:px-8 print:hidden">
       <button
         type="button"
         onClick={onOpenNav}
